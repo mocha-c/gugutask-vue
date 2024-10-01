@@ -1,7 +1,7 @@
 <template>
-  <div class="register-container">
+  <div class="login-container">
     <!-- 左边的美图 -->
-    <div class="register-image"><img src="/register.jpg" alt="登录图" /></div>
+    <div class="login-image"><img src="/login.jpg" alt="登录图" /></div>
 
     <!-- 右边的表单 -->
     <div right-form>
@@ -9,27 +9,29 @@
         :model="loginForm"
         :rules="rules"
         ref="loginFormRef"
-        @submit.prevent="handleRegister"
+        @submit.prevent="handleLogin"
         class="login-form"
       >
+        <div id="Title">
+          <el-text class="mx-1" size="large" tag="b">🕊️咕咕任务</el-text>
+        </div>
         <div id="inputs">
           <el-form-item label="用户名" prop="username">
-            <el-input v-model="loginForm.username" placeholder="输个用户名呗？"></el-input>
+            <el-input v-model="loginForm.username" placeholder="你谁来着？"></el-input>
           </el-form-item>
           <el-form-item label="密码" prop="password">
-            <el-input
-              v-model="loginForm.password"
-              type="password"
-              placeholder="密码咧？"
-            ></el-input>
+            <el-input v-model="loginForm.password" type="password" placeholder="嗯哼？"></el-input>
           </el-form-item>
         </div>
         <div id="button-login">
           <el-form-item>
-            <el-button color="#08979c" @click="toLogin" id="register" plain>登录</el-button>
+            <el-button color="#626aef" @click="toReset" id="register" plain>忘记密码</el-button>
           </el-form-item>
           <el-form-item>
-            <el-button color="#fa8c16" @click="handleRegister" plain>提交</el-button>
+            <el-button color="#08979c" @click="toRegister" id="register" plain>注册</el-button>
+          </el-form-item>
+          <el-form-item>
+            <el-button color="#fa8c16" @click="handleLogin" plain>登录</el-button>
           </el-form-item>
         </div>
       </el-form>
@@ -54,22 +56,29 @@ const loginForm = reactive({
 
 /* 表单验证规则 */
 const rules = {
-  username: [{ required: true, message: '不写用户名我咋知道谁是你啊', trigger: 'blur' }],
+  username: [{ required: true, message: '你甚至都不愿意告诉我名字〒▽〒', trigger: 'blur' }],
   password: [{ required: true, message: '自己的密码都记不住？', trigger: 'blur' }]
 }
 
 /* 引用表单实例 */
 const loginFormRef = ref(null)
-const toLogin = () => {
-  router.push('/login')
+
+// 去注册
+const toRegister = () => {
+  router.push('/register')
+}
+
+// 去重置密码
+const toReset = () => {
+  router.push('/email-to-token')
 }
 /* 登录处理函数 */
-const handleRegister = async () => {
+const handleLogin = async () => {
   if (loginFormRef.value) {
     loginFormRef.value.validate(async (valid) => {
       if (valid) {
         try {
-          const response = await axios.post('http://localhost:3006/api/auth/register', loginForm)
+          const response = await axios.post('/api/auth/login', loginForm)
           const { code, data } = response.data
 
           if (code === 20039) {
@@ -84,7 +93,7 @@ const handleRegister = async () => {
           ElMessage.error('〒▽〒: ' + error.message)
         }
       } else {
-        ElMessage.error('填完呗，花不了多少时间')
+        ElMessage.error('你是谁来着？')
       }
     })
   }
@@ -92,7 +101,7 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-.register-container {
+.login-container {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -106,10 +115,9 @@ const handleRegister = async () => {
 }
 
 /* 左边的图片部分 */
-.register-image {
-  flex: 1; /* 占据左边部分 */
+.login-image {
+  flex: 1.618; /* 占据左边部分 */
   display: flex;
-  justify-content: center;
   align-items: center;
   height: 100%; /* 让容器的高度填满父容器 */
   overflow: hidden; /* 防止图片溢出容器 */
@@ -117,8 +125,8 @@ const handleRegister = async () => {
   border-bottom-left-radius: 1em;
 }
 
-.register-image img {
-  max-width: 100%;
+.login-image img {
+  max-width: 90%;
   height: auto;
   border-radius: 8px;
 }
@@ -128,8 +136,7 @@ const handleRegister = async () => {
   flex: 1; /* 占据右边部分 */
   display: flex;
   flex-direction: column;
-  padding-left: 2em;
-  margin-right: 1em;
+  margin-right: 3em;
 }
 
 #inputs {
@@ -147,5 +154,11 @@ const handleRegister = async () => {
 
 #register {
   margin-right: 1em;
+}
+
+#Title {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1em;
 }
 </style>

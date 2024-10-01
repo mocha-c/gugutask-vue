@@ -1,17 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Record from '@/views/Record.vue'
-import Task from '@/views/Task.vue'
-import Me from '@/views/Me.vue'
-import Login from '@/views/Login.vue'
-import Register from '@/views/Register.vue'
-import Reset from '@/views/Reset.vue'
+import Record from '../views/Record.vue'
+import Task from '../views/Task.vue'
+import Me from '../views/Me.vue'
+import Login from '../views/Auth/Login.vue'
+import Register from '../views/Auth/Register.vue'
+import EmailToToken from '../views/Auth/EmailToToken.vue'
 const routes = [
   { path: '/', component: Record },
   { path: '/task', component: Task },
   { path: '/me', component: Me },
   { path: '/login', component: Login },
   { path: '/register', component: Register },
-  { path: '/reset', component: Reset }
+  { path: '/email-to-token', component: EmailToToken }
 ]
 
 const router = createRouter({

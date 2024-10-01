@@ -1,6 +1,6 @@
 <template>
   <div id="app" class="app-container">
-    <!-- 只有当路径不是 /login 时才显示导航栏 -->
+    <!-- 只有登录后才显示导航栏 -->
     <el-menu
       v-if="!isAuthPage"
       :default-active="activeIndex"
@@ -39,7 +39,7 @@ export default {
   watch: {
     // 监听路由的变化，自动更新是否在认证相关页面
     $route(to) {
-      const authPages = ['/login', '/register', '/reset']
+      const authPages = ['/login', '/register', '/email-to-token']
       this.isAuthPage = authPages.includes(to.path)
 
       // 确保菜单的 activeIndex 和当前路径一致
@@ -51,7 +51,7 @@ export default {
   },
   mounted() {
     // 检查当前路由是否在认证页面
-    const authPages = ['/login', '/register', '/reset']
+    const authPages = ['/login', '/register', '/email-to-token']
     this.isAuthPage = authPages.includes(this.$route.path)
 
     // 恢复菜单选中状态

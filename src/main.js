@@ -3,14 +3,15 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import App from './App.vue'
 import router from './router'
+import axios from 'axios'
 
 const app = createApp(App)
-
+axios.defaults.baseURL = 'http://localhost:3006'
 // 添加路由导航守卫
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
-  // 允许没有 token 的用户访问 /login, /register, /reset 页面
-  const publicPages = ['/login', '/register', '/reset']
+  // 允许没有 token 的用户访问 /login, /register, /email-to-token 页面
+  const publicPages = ['/login', '/register', '/email-to-token']
   // 如果没有token并且目标路由不是 /login, /register, /reset，则跳转到 /login
   if (!token && !publicPages.includes(to.path)) {
     next('/login')
