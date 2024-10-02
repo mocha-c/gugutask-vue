@@ -1,12 +1,12 @@
 <template>
   <div>
     <el-collapse>
-      <el-collapse-item v-for="(type, index) in taskTypes" :key="index" :name="type.typeName">
+      <el-collapse-item v-for="(type, index) in existTaskTypes" :key="index" :name="type.typeName">
         <template #title>
           <span>{{ type.typeName }}</span>
         </template>
-        <el-table :data="filterTasksByType(type.typeName)" style="width: 100%">
-          <el-table-column prop="date1" label="日期">
+        <el-table :data="filterTasksByType(type.typeName)" style="width: 100%" border>
+          <el-table-column prop="date1" label="日期" sortable>
             <template #default="scope">
               <el-popover trigger="hover" placement="bottom" width="auto">
                 <template #default>
@@ -19,7 +19,16 @@
             </template>
           </el-table-column>
           <el-table-column prop="taskName" label="任务名称" />
-          <el-table-column prop="taskStatus" label="任务状态">
+          <el-table-column
+            prop="taskStatus"
+            label="任务状态"
+            :filters="[
+              { text: '已完成', value: true },
+              { text: '未完成', value: false }
+            ]"
+            :filter-method="filterStatus"
+            filter-placement="bottom-end"
+          >
             <template #default="scope">
               <el-checkbox
                 v-model="scope.row.taskStatus"
@@ -29,7 +38,7 @@
               </el-checkbox>
             </template>
           </el-table-column>
-          <el-table-column prop="taskPriority" label="优先级" />
+          <el-table-column prop="taskPriority" label="优先级" sortable="" />
           <el-table-column prop="taskDetail" label="任务细节">
             <template #default="scope">
               <el-popover trigger="hover" placement="bottom" width="auto">
@@ -54,7 +63,7 @@
           <el-table-column label="操作">
             <template #default="scope">
               <div style="text-align: center">
-                <el-button size="small" @click="handleEdit(scope.row)"> 编辑 </el-button>
+                <el-button size="small" @click="openDialog(scope.row)">编辑</el-button>
                 <br />
                 <el-button size="small" type="danger" @click="handleDelete(scope.row.taskId)">
                   删除
@@ -66,17 +75,101 @@
       </el-collapse-item>
     </el-collapse>
   </div>
+  <el-dialog v-model="dialogFormVisible" title="编辑任务" width="500">
+    <el-form
+      ref="ruleFormRef"
+      :model="ruleForm"
+      :rules="rules"
+      label-width="auto"
+      status-icon
+      :size="formSize"
+      style="max-width: 600px"
+    >
+      <!-- 任务名称输入框 -->
+      <el-form-item label="任务名称" prop="name">
+        <el-input v-model="ruleForm.name" placeholder="告诉我接下来的安排？" />
+      </el-form-item>
+      <el-form-item label="任务类型" prop="existTaskTypes">
+        <el-select v-model="ruleForm.existTaskTypes" placeholder="是哪种类型的任务呢">
+          <el-option
+            v-for="(item, index) in existTaskTypes"
+            :key="index"
+            :label="item.typeName"
+            :value="item.taskTypeId"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="截止时间" required>
+        <el-col :span="11">
+          <el-date-picker
+            v-model="ruleForm.date1"
+            type="date"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
+        </el-col>
+        <el-col :span="2" id="text-center">
+          <span class="text-gray-500">-</span>
+        </el-col>
+        <el-col :span="11">
+          <el-time-picker
+            v-model="ruleForm.date2"
+            placeholder="可以不选具体时间"
+            style="width: 100%"
+          />
+        </el-col>
+      </el-form-item>
+
+      <!-- 优先级选择器 -->
+      <el-form-item label="优先级" prop="priority">
+        <el-segmented v-model="ruleForm.priority" :options="priorityOptions" />
+      </el-form-item>
+
+      <!-- 任务细节输入框 -->
+      <el-form-item label="任务细节" prop="detail">
+        <el-input v-model="ruleForm.detail" type="textarea" placeholder="和我说详细点儿呗" />
+      </el-form-item>
+
+      <!-- 操作按钮 -->
+      <el-form-item id="Button">
+        <el-button @click="resetForm(ruleFormRef)">重置</el-button>
+        <el-button type="primary" @click="updateTask(ruleFormRef)">提交</el-button>
+      </el-form-item>
+    </el-form>
+  </el-dialog>
 </template>
 
 <script>
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { reactive, ref } from 'vue'
 
 export default {
   data() {
     return {
+      dialogFormVisible: false,
+      ruleForm: {
+        name: '',
+        existTaskTypes: [],
+        date1: null,
+        date2: null,
+        detail: '',
+        priority: ''
+      },
+      rules: {
+        name: [
+          { required: true, message: '你一点计划都不做哒?!', trigger: 'blur' },
+          { min: 2, max: 20, message: '至少写俩字儿呗', trigger: 'blur' }
+        ],
+        existTaskTypes: [{ required: true, message: '是什么类型呢', trigger: 'change' }],
+        date1: [{ type: 'date', required: true, message: '这事儿啥时候结束啊', trigger: 'change' }],
+        date2: [{ type: 'date', required: false }],
+        priority: [{ required: true, message: '急不?不急晚点做', trigger: 'change' }],
+        detail: [{ required: false }]
+      },
+      priorityOptions: ['高', '中', '低'],
       tasks: [],
-      taskTypes: []
+      existTaskTypes: []
     }
   },
   methods: {
@@ -95,14 +188,6 @@ export default {
             taskStatus: task.taskStatus === '已完成'
           }))
 
-          // 使用 reduce 去重并保留 taskType 对象
-          const uniqueTypes = []
-          this.taskTypes = this.tasks.reduce((acc, task) => {
-            if (!acc.some((type) => type.typeName === task.taskType.typeName)) {
-              acc.push(task.taskType)
-            }
-            return acc
-          }, uniqueTypes)
           localStorage.setItem('tasks', JSON.stringify(this.tasks))
         } else {
           this.$message.error(response.data.message)
@@ -110,6 +195,24 @@ export default {
       } catch (error) {
         console.error(error)
         this.$message.error('请求... 失败...')
+      }
+    },
+    async fetchTaskTypes() {
+      const token = localStorage.getItem('token') // 从本地存储获取 token
+      try {
+        const response = await axios.get('/api/task-types/mine', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+        if (response.data.code === 20039) {
+          this.existTaskTypes = response.data.data // 存储任务类型
+        } else {
+          ElMessage.error(response.data.message)
+        }
+      } catch (error) {
+        console.error(error)
+        ElMessage.error('唔..获取任务类型失败...')
       }
     },
     async handleDelete(taskId) {
@@ -131,6 +234,7 @@ export default {
               ElMessage.success('删除~成功！')
               // 重新获取任务列表以更新视图
               this.fetchTasks()
+              this.fetchTaskTypes()
             } else {
               ElMessage.error('〒▽〒:' + response.data.message)
             }
@@ -141,7 +245,43 @@ export default {
         })
         .catch(() => {})
     },
+    openDialog(task) {
+      const existTaskTypes = this.fetchTaskTypes() || ''
+      this.ruleForm.name = task.taskName || '' // 使用 taskName
+      this.ruleForm.existTaskTypes = task.taskType.taskTypeId || null // 获取 taskTypeId
+      // 转换 date1 和 date2
+      this.ruleForm.date1 = new Date(task.date1) || null // date1 转换为 Date 对象
+      this.ruleForm.date2 = task.date2 ? new Date(`1970-01-01T${task.date2}`) : null // date2 转换为 Date 对象
+      this.ruleForm.detail = task.taskDetail || '' // 使用 taskDetail
+      this.ruleForm.priority = task.taskPriority || '' // 使用 taskPriority
+      localStorage.setItem('currentTask', JSON.stringify(task))
+      localStorage.setItem('existTaskTypes', JSON.stringify(existTaskTypes))
+      this.dialogFormVisible = true // 唤醒对话框
+    },
+    resetForm() {
+      const currentTask = JSON.parse(localStorage.getItem('currentTask')) // 从本地存储获取任务并解析
 
+      if (currentTask) {
+        // 确保 currentTask 存在
+        this.ruleForm.name = currentTask.taskName || '' // 使用 taskName
+        this.ruleForm.existTaskTypes = currentTask.taskType.taskTypeId || null // 获取 taskTypeId
+        // 转换 date1 和 date2
+        this.ruleForm.date1 = new Date(currentTask.date1) || null // date1 转换为 Date 对象
+        this.ruleForm.date2 = currentTask.date2 ? new Date(`1970-01-01T${currentTask.date2}`) : null // date2 转换为 Date 对象
+        this.ruleForm.detail = currentTask.taskDetail || '' // 使用 taskDetail
+        this.ruleForm.priority = currentTask.taskPriority || '' // 使用 taskPriority
+      } else {
+        // 如果没有当前任务，可以重置表单到默认状态
+        this.ruleForm = {
+          name: '',
+          existTaskTypes: null,
+          date1: null,
+          date2: null,
+          description: '',
+          priority: ''
+        }
+      }
+    },
     filterTasksByType(typeName) {
       // 直接从 this.tasks 筛选符合任务类型的任务
       return this.tasks.filter((task) => task.taskType.typeName === typeName)
@@ -178,6 +318,46 @@ export default {
           // 取消时不做任何操作
         })
     },
+    updateTask() {
+      const token = localStorage.getItem('token') // 从本地存储获取 token
+      const currentTask = JSON.parse(localStorage.getItem('currentTask')) // 获取当前任务
+
+      if (currentTask) {
+        const taskId = currentTask.taskId // 获取 taskId
+
+        console.log(taskId)
+        // 准备要发送的数据
+        const updatedTask = {
+          name: this.ruleForm.name,
+          typeId: this.ruleForm.existTaskTypes,
+          date1: this.ruleForm.date1.toISOString().split('T')[0], // 转换为日期字符串
+          date2: this.ruleForm.date2 ? this.ruleForm.date2.toTimeString().split(' ')[0] : null, // 转换为时间字符串
+          detail: this.ruleForm.detail,
+          priority: this.ruleForm.priority
+        }
+
+        // 发送 PUT 请求
+        axios
+          .put(`/api/tasks/${taskId}`, updatedTask, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          })
+          .then((response) => {
+            ElMessage.success('更新~成功！( •̀ ω •́ )✧')
+            this.dialogFormVisible = false // 关闭对话框
+            this.resetForm() // 重置表单
+            this.fetchTasks() // 重新获取任务列表
+            this.fetchTaskTypes()
+          })
+          .catch((error) => {
+            console.error(error)
+            ElMessage.error('唔..失败了')
+          })
+      } else {
+        ElMessage.error('没有找到当前任务信息。')
+      }
+    },
 
     formatTaskDetail(detail) {
       return detail.length > 8 ? detail.slice(0, 8) + '...' : detail
@@ -187,10 +367,14 @@ export default {
         return row.tags.map((tag) => tag.tagName).join(', ') // 假设每个标签对象都有一个`name`属性
       }
       return '无标签' // 或者返回其他合适的默认值
+    },
+    filterStatus(value, row) {
+      return row.taskStatus === value
     }
   },
   mounted() {
     this.fetchTasks()
+    this.fetchTaskTypes()
   }
 }
 </script>
@@ -199,5 +383,15 @@ export default {
 .el-table .el-table__header th,
 .el-table .el-table__body td {
   text-align: center;
+}
+
+.el-collapse {
+  --el-collapse-header-font-size: 1.2em;
+  text-align: center;
+  padding: 20px;
+  margin: auto;
+}
+.el-collapse-item__header {
+  color: #4595d5;
 }
 </style>
