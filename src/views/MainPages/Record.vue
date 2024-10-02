@@ -40,7 +40,11 @@
         </el-col>
 
         <el-col :span="11">
-          <el-time-picker v-model="ruleForm.date2" placeholder="选择时间" style="width: 100%" />
+          <el-time-picker
+            v-model="ruleForm.date2"
+            placeholder="可以不选具体时间"
+            style="width: 100%"
+          />
         </el-col>
       </el-form-item>
 
@@ -105,7 +109,7 @@ const rules = reactive<FormRules<RuleForm>>({
   ],
   tasktype: [{ required: true, message: '是什么类型呢', trigger: 'change' }],
   date1: [{ type: 'date', required: true, message: '这事儿啥时候结束啊', trigger: 'change' }],
-  date2: [{ type: 'date', required: true, message: '选个点儿呗', trigger: 'change' }],
+  date2: [{ type: 'date', required: false }],
   priority: [{ required: true, message: '急不?不急晚点做', trigger: 'change' }],
   detail: [{ required: false }]
 })
@@ -120,8 +124,10 @@ const submitForm = async (formEl: FormInstance | undefined) => {
 
         // 格式化 date1 为 YYYY-MM-DD
         const formattedDate1 = new Date(ruleForm.date1).toISOString().split('T')[0] // 提取日期部分
-        // 格式化 date2 为 HH:mm:ss
-        const formattedDate2 = new Date(ruleForm.date2).toTimeString().split(' ')[0] // 提取时间部分
+        // 检查是否选择了 date2，如果选择了则格式化为 HH:mm:ss，否则设为空字符串
+        const formattedDate2 = ruleForm.date2
+          ? new Date(ruleForm.date2).toTimeString().split(' ')[0]
+          : ''
 
         // 构造要发送到后端的数据
         const payload = {
