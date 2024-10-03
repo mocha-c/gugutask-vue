@@ -249,9 +249,8 @@ export default {
       const existTaskTypes = this.fetchTaskTypes() || ''
       this.ruleForm.name = task.taskName || '' // 使用 taskName
       this.ruleForm.existTaskTypes = task.taskType.taskTypeId || null // 获取 taskTypeId
-      // 转换 date1 和 date2
-      this.ruleForm.date1 = new Date(task.date1) || null // date1 转换为 Date 对象
-      this.ruleForm.date2 = task.date2 ? new Date(`1970-01-01T${task.date2}`) : null // date2 转换为 Date 对象
+      this.ruleForm.date1 = new Date(task.date1 + 'T00:00:00+08:00') // 确保是东八区
+      this.ruleForm.date2 = task.date2 ? new Date(`1970-01-01T${task.date2}+08:00`) : null // 确保是东八区
       this.ruleForm.detail = task.taskDetail || '' // 使用 taskDetail
       this.ruleForm.priority = task.taskPriority || '' // 使用 taskPriority
       localStorage.setItem('currentTask', JSON.stringify(task))
@@ -266,8 +265,12 @@ export default {
         this.ruleForm.name = currentTask.taskName || '' // 使用 taskName
         this.ruleForm.existTaskTypes = currentTask.taskType.taskTypeId || null // 获取 taskTypeId
         // 转换 date1 和 date2
-        this.ruleForm.date1 = new Date(currentTask.date1) || null // date1 转换为 Date 对象
-        this.ruleForm.date2 = currentTask.date2 ? new Date(`1970-01-01T${currentTask.date2}`) : null // date2 转换为 Date 对象
+        this.ruleForm.date1 = currentTask.date1
+          ? new Date(currentTask.date1 + 'T00:00:00+08:00')
+          : null
+        this.ruleForm.date2 = currentTask.date2
+          ? new Date(`1970-01-01T${currentTask.date2}+08:00`)
+          : null
         this.ruleForm.detail = currentTask.taskDetail || '' // 使用 taskDetail
         this.ruleForm.priority = currentTask.taskPriority || '' // 使用 taskPriority
       } else {
@@ -330,9 +333,17 @@ export default {
         const updatedTask = {
           name: this.ruleForm.name,
           typeId: this.ruleForm.existTaskTypes,
-          date1: this.ruleForm.date1.toISOString().split('T')[0], // 转换为日期字符串
-          date2: this.ruleForm.date2 ? this.ruleForm.date2.toTimeString().split(' ')[0] : null, // 转换为时间字符串
-          detail: this.ruleForm.detail,
+          date1: this.ruleForm.date1
+            ? new Date(this.ruleForm.date1.getTime() + 8 * 60 * 60 * 1000)
+                .toISOString()
+                .split('T')[0]
+            : null, // 转换为 YYYY-MM-DD
+          date2: this.ruleForm.date2
+            ? new Date(this.ruleForm.date2.getTime() + 8 * 60 * 60 * 1000)
+                .toISOString()
+                .split('T')[1]
+                .substring(0, 8)
+            : null, // 转换为 HH:MM:SS
           priority: this.ruleForm.priority
         }
 
@@ -344,6 +355,8 @@ export default {
             }
           })
           .then((response) => {
+            console.log('date1:', this.ruleForm.date1) // 调试输出
+            console.log('date2:', this.ruleForm.date2) // 调试输出} else {
             ElMessage.success('更新~成功！( •̀ ω •́ )✧')
             this.dialogFormVisible = false // 关闭对话框
             this.resetForm() // 重置表单
