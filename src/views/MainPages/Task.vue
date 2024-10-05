@@ -572,6 +572,19 @@ export default {
       // 首先手动验证表单，确保 taskTypesForm.newTaskType 不能为空
       this.$refs.taskTypesFormRef.validate(async (valid) => {
         if (valid) {
+          const newTaskType = this.taskTypesForm.newTaskType.trim() // 获取输入的新任务类型，并去除前后空格
+
+          // 1. 验证任务类型是否已经存在
+          const existingType = this.taskTypesForm.existTaskTypes.find(
+            (type) => type.typeName === newTaskType
+          )
+
+          if (existingType) {
+            // 如果找到已有相同类型名称，则提示并返回
+            ElMessage.error('已经有这个类型了哦~')
+            return
+          }
+
           const token = localStorage.getItem('token') // 从本地存储获取 token
           try {
             // 发送 POST 请求到后端
