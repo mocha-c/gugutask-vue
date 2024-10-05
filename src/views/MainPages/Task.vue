@@ -243,6 +243,23 @@
       </div>
     </el-form>
   </el-dialog>
+  <el-dialog v-model="editTagDialogVisible" title="编辑标签" width="400px">
+    <el-form
+      ref="editTagFormRef"
+      :model="editTagForm"
+      label-width="auto"
+      :rules="editTagNameFormRules"
+    >
+      <el-form-item label="标签名称" prop="tagName">
+        <el-input v-model="editTagForm.tagName" placeholder="新的名称？" />
+      </el-form-item>
+      <!-- 操作按钮 -->
+      <el-form-item>
+        <el-button @click="cancelEditTag">取消</el-button>
+        <el-button type="primary" @click="submitEditTag">提交</el-button>
+      </el-form-item>
+    </el-form>
+  </el-dialog>
   <div id="changeType">
     <el-button color="#08979c" plain @click="openTaskTypeDialog">修改任务类型</el-button>
   </div>
@@ -260,7 +277,9 @@ export default {
       dialogFormVisible: false,
       taskTypeDialogVisible: false,
       editTaskTypeDialogVisible: false,
-      typedialog: false,
+      typedialog: false, // 用于控制编辑标签对话框的显示
+      editTagDialogVisible: false,
+
       ruleForm: {
         name: '',
         existTaskTypes: [],
@@ -276,6 +295,11 @@ export default {
       tagForm: {
         tags: [],
         newTag: ''
+      },
+      // 编辑表单的数据
+      editTagForm: {
+        tagId: null, // 存储当前标签的ID
+        tagName: '' // 存储当前标签的名称
       },
       rules: {
         name: [
@@ -296,6 +320,9 @@ export default {
       },
       tagFormRules: {
         newTag: [{ required: true, message: '是什么标签呢？', trigger: 'blur' }]
+      },
+      editTagNameFormRules: {
+        tagName: [{ required: true, message: '要修改吗？', trigger: 'blur' }]
       },
       priorityOptions: ['高', '中', '低'],
       tasks: [],
@@ -745,10 +772,7 @@ export default {
         ElMessage.error('操作失败: ' + error)
       }
     },
-    // 打开编辑标签对话框
-    openEditTagDialog(tag) {
-      this.tagForm.newTag = tag.tagName // 填充标签数据
-    },
+
     // 取消编辑
     cancelEditTags() {
       this.tagDialogVisible = false // 隐藏对话框
@@ -823,7 +847,13 @@ export default {
     },
     cancelEditTags() {
       this.tagDialogVisible = false
-      this.tagForm.newTag = ''
+      ;(this.tagForm.newTag = ''),
+        this.$nextTick(() => {
+          // 清除验证状态
+          if (this.$refs.tagFormRef) {
+            this.$refs.tagFormRef.resetFields()
+          }
+        })
     },
     // 获取某个任务类型下的所有标签，生成过滤选项
     getTagFilters(typeName) {
@@ -858,6 +888,67 @@ export default {
       return filteredTasks.filter((task) =>
         task.tags.some((tag) => tag.tagName === this.selectedTag)
       )
+    },
+    // 打开编辑标签对话框
+    openEditTagDialog(tag) {
+      this.editTagForm.tagId = tag.tagId || tag.id // 确保正确赋值标签ID
+      this.editTagForm.tagName = tag.tagName // 赋值当前标签名称
+      this.editTagDialogVisible = true // 显示编辑标签对话框
+    },
+
+    // 取消编辑标签
+    cancelEditTag() {
+      this.editTagDialogVisible = false // 关闭对话框
+      this.editTagForm.tagId = null
+      this.editTagForm.tagName = ''
+    },
+    // 提交编辑后的标签
+    async submitEditTag() {
+      if (!this.editTagForm.tagName.trim()) {
+        ElMessage.error('标签名称不能为空')
+        return
+      }
+
+      const token = localStorage.getItem('token') // 获取本地存储的token
+      const tagId = this.editTagForm.tagId // 获取当前标签ID
+      const updatedTagName = this.editTagForm.tagName // 获取编辑后的标签名称
+
+      try {
+        // 发送PUT请求更新标签
+        const response = await axios.put(
+          `/api/tags/${tagId}`,
+          {
+            tagName: updatedTagName
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` } // 携带token
+          }
+        )
+
+        if (response.data.code === 20039) {
+          ElMessage.success('标签更新成功!')
+          // 更新对话框中的标签列表
+          const tagIndex = this.tagForm.tags.findIndex(
+            (tag) => tag.tagId === tagId || tag.id === tagId
+          )
+          if (tagIndex !== -1) {
+            // 直接更新数组的对象属性，Vue 3 中这会触发响应式更新
+            this.tagForm.tags[tagIndex].tagName = updatedTagName
+
+            // 重新赋值整个数组，确保 Vue 响应式生效
+            this.tagForm.tags = [...this.tagForm.tags]
+          } else {
+            console.warn(`没有找到 ID 为 ${tagId} 的标签`)
+          }
+          this.editTagDialogVisible = false // 关闭对话框
+          this.fetchTasks() // 可选：重新获取任务以确保更新同步
+        } else {
+          ElMessage.error('〒▽〒: ' + response.data.message)
+        }
+      } catch (error) {
+        console.error('〒▽〒:', error)
+        ElMessage.error('〒▽〒出问题了')
+      }
     }
   },
 
