@@ -51,12 +51,23 @@
               </el-popover>
             </template>
           </el-table-column>
-          <el-table-column label="标签">
+          <!-- 标签列，添加筛选功能 -->
+          <el-table-column
+            label="标签"
+            prop="tags"
+            :filters="getTagFilters(type.typeName)"
+            :filter-method="filterTasksByTag"
+            filter-placement="bottom-end"
+          >
             <template #default="scope">
               <div>
                 <el-tag v-for="(tag, index) in scope.row.tags" :key="index">
                   {{ tag.tagName }}
                 </el-tag>
+                <div id="editTagButton">
+                  <!-- 添加修改按钮 -->
+                  <el-button size="small" @click="openTagDialog(scope.row)">修改</el-button>
+                </div>
               </div>
             </template>
           </el-table-column>
@@ -197,7 +208,41 @@
       </div>
     </el-form>
   </el-dialog>
-
+  <!-- 标签修改对话框 -->
+  <el-dialog v-model="tagDialogVisible" title="编辑标签" width="500">
+    <el-form ref="tagFormRef" :model="tagForm" label-width="auto" :rules="tagFormRules" status-icon>
+      <el-table :data="tagForm.tags" style="width: 100%">
+        <!-- 标签名称 -->
+        <el-table-column prop="tagName" label="标签" />
+        <!-- 操作列 -->
+        <el-table-column label="操作" fixed="right" width="150">
+          <template #default="scope">
+            <el-button
+              link
+              type="primary"
+              size="small"
+              @click="openEditTagDialog(scope.row, taskId)"
+              >编辑</el-button
+            >
+            <!-- 这里deleteTag传入的scope.row是tag对象，这个对象的id属性是tag.id -->
+            <el-button link type="danger" size="small" @click="deleteTag(scope.row)"
+              >删除</el-button
+            >
+          </template>
+        </el-table-column>
+      </el-table>
+      <div id="addTag">
+        <el-form-item label="新增标签" prop="newTag">
+          <el-input v-model="tagForm.newTag" placeholder="想创建新的标签吗？" />
+        </el-form-item>
+        <!-- 操作按钮 -->
+        <el-form-item id="Button">
+          <el-button @click="cancelEditTags">取消</el-button>
+          <el-button type="primary" @click="addTagToTask">添加</el-button>
+        </el-form-item>
+      </div>
+    </el-form>
+  </el-dialog>
   <div id="changeType">
     <el-button color="#08979c" plain @click="openTaskTypeDialog">修改任务类型</el-button>
   </div>
@@ -210,6 +255,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 export default {
   data() {
     return {
+      tagDialogVisible: false,
       newTaskType: '',
       dialogFormVisible: false,
       taskTypeDialogVisible: false,
@@ -227,6 +273,10 @@ export default {
         existTaskTypes: [],
         newTaskType: ''
       },
+      tagForm: {
+        tags: [],
+        newTag: ''
+      },
       rules: {
         name: [
           { required: true, message: '你一点计划都不做哒?!', trigger: 'blur' },
@@ -243,6 +293,9 @@ export default {
       },
       editTaskTypeFormRules: {
         typeName: [{ required: true, message: '要修改吗？', trigger: 'blur' }]
+      },
+      tagFormRules: {
+        newTag: [{ required: true, message: '是什么标签呢？', trigger: 'blur' }]
       },
       priorityOptions: ['高', '中', '低'],
       tasks: [],
@@ -383,8 +436,14 @@ export default {
       }
     },
     filterTasksByType(typeName) {
-      // 直接从 this.tasks 筛选符合任务类型的任务
-      return this.tasks.filter((task) => task.taskType.typeName === typeName)
+      // 过滤符合任务类型的任务
+      const filteredTasks = this.tasks.filter((task) => task.taskType.typeName === typeName)
+      // 去重逻辑，确保不返回重复的任务
+      const uniqueTasks = Array.from(new Set(filteredTasks.map((task) => task.taskId))).map((id) =>
+        filteredTasks.find((task) => task.taskId === id)
+      )
+
+      return uniqueTasks
     },
     updateTaskStatus(task) {
       const newStatus = !task.taskStatus // 计算新状态
@@ -628,6 +687,177 @@ export default {
           ElMessage.error('请填写任务类型名称')
         }
       })
+    },
+    // 打开标签修改对话框
+    openTagDialog(task) {
+      console.log('传递的任务数据:', task) // 查看传入的任务数据
+      console.log('打开对话框，任务ID:', task.taskId) // 确认任务ID是否正确
+      console.log('标签数据:', task.tags) // 查看标签数据
+      localStorage.setItem('currentTaskId', JSON.stringify(task.taskId))
+      if (task.taskId && Array.isArray(task.tags)) {
+        this.tagForm.taskId = task.taskId // 确保正确赋值任务ID
+        this.tagForm.tags = task.tags
+      } else {
+        ElMessage.error('任务ID或标签未定义')
+        this.tagForm.tags = []
+        this.tagForm.taskId = null
+      }
+      this.tagDialogVisible = true // 显示对话框
+    },
+
+    // 删除标签
+    async deleteTag(tag) {
+      const taskId = this.tagForm.taskId // 直接从当前表单中获取最新的 taskId
+      const tagId = tag.tagId || tag.id
+      console.log('标签ID:', tagId)
+      console.log('任务ID:', taskId)
+      if (!taskId || !tagId) {
+        ElMessage.error('任务ID或标签ID无效，无法删除标签')
+        return
+      }
+      const token = localStorage.getItem('token')
+      try {
+        // 1. 先删除任务与标签的关联
+        const taskTagUrl = `/api/task-tags/${taskId}/${tagId}`
+        const taskTagResponse = await axios.delete(taskTagUrl, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+
+        if (taskTagResponse.data.code === 20039) {
+          // 成功后更新标签列表
+          this.tagForm.tags = this.tagForm.tags.filter((t) => (t.tagId || t.id) !== tagId)
+          console.log('任务标签关联删除成功')
+          this.fetchTasks()
+          // 2. 发送请求，删除标签本身
+          const tagUrl = `/api/tags/${tagId}`
+          const tagResponse = await axios.delete(tagUrl, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+
+          if (tagResponse.data.code === 20039) {
+            console.log('标签删除成功')
+            ElMessage.success('标签删除成功!')
+          } else {
+            ElMessage.error('删除标签失败: ' + response.data.message)
+          }
+        }
+      } catch (error) {
+        ElMessage.error('操作失败: ' + error)
+      }
+    },
+    // 打开编辑标签对话框
+    openEditTagDialog(tag) {
+      this.tagForm.newTag = tag.tagName // 填充标签数据
+    },
+    // 取消编辑
+    cancelEditTags() {
+      this.tagDialogVisible = false // 隐藏对话框
+      this.tagForm.newTag = '' // 清空新增标签输入框
+      this.$nextTick(() => {
+        // 清除验证状态
+        if (this.$refs.tagFormRef) {
+          this.$refs.tagFormRef.resetFields()
+        }
+      })
+    },
+    // 新增标签并关联到任务
+    async addTagToTask() {
+      // 1. 手动验证输入框是否为空
+      if (!this.tagForm.newTag.trim()) {
+        ElMessage.error('不可以为空嗷')
+        return // 如果为空，则直接返回，不执行后续代码
+      }
+      const token = localStorage.getItem('token')
+      const newTag = { tagName: this.tagForm.newTag } // 准备新增标签的数据
+
+      try {
+        // 1. 发送请求新增标签
+        const tagResponse = await axios.post('/api/tags', newTag, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+
+        if (tagResponse.data.code === 20039) {
+          const tagId = tagResponse.data.data.tagId || tagResponse.data.data.id // 检查返回的tagId
+          console.log('新增标签成功，标签ID:', tagId) // 检查标签新增是否成功
+
+          // 2. 发送请求，将标签添加到任务
+          const taskTagData = { taskId: this.tagForm.taskId, tagId }
+          console.log('准备关联标签到任务，taskId:', this.tagForm.taskId, 'tagId:', tagId) // 确认关联请求即将发送
+
+          const taskTagResponse = await axios.post('/api/task-tags', taskTagData, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+
+          if (taskTagResponse.data.code === 20039) {
+            ElMessage.success('标签添加成功!')
+            console.log('关联标签到任务成功')
+
+            // 3. 将返回的 tagId 和 taskId 对应存储到标签列表
+            const newTagData = {
+              tagId: taskTagResponse.data.data.tagId, // 后端返回的 tagId
+              tagName: this.tagForm.newTag, // 使用新标签的名称
+              taskId: taskTagResponse.data.data.taskId // 后端返回的 taskId
+            }
+
+            // 更新当前任务的标签列表
+            const task = this.tasks.find((task) => task.taskId === this.tagForm.taskId)
+            if (task) {
+              // 将新标签推入当前任务的标签列表
+              task.tags.push(newTagData)
+              this.fetchTasks()
+              // 同时更新对话框中的标签列表
+              this.tagForm.tags = [...task.tags] // 重新赋值，触发 Vue 的响应式更新
+            }
+
+            this.tagForm.newTag = '' // 清空输入框
+          } else {
+            ElMessage.error('关联标签失败: ' + taskTagResponse.data.message)
+          }
+        } else {
+          ElMessage.error('新增标签失败: ' + tagResponse.data.message)
+        }
+      } catch (error) {
+        console.error('请求错误:', error) // 更明确的错误信息
+        ElMessage.error('操作失败，请检查网络或服务器。')
+      }
+    },
+    cancelEditTags() {
+      this.tagDialogVisible = false
+      this.tagForm.newTag = ''
+    },
+    // 获取某个任务类型下的所有标签，生成过滤选项
+    getTagFilters(typeName) {
+      const tasksForType = this.tasks.filter((task) => task.taskType.typeName === typeName)
+      const tagsSet = new Set()
+
+      // 遍历所有任务，提取标签
+      tasksForType.forEach((task) => {
+        task.tags.forEach((tag) => tagsSet.add(tag.tagName)) // 使用Set自动去重
+      })
+
+      // 生成标签过滤项，返回格式[{ text: '标签名', value: '标签名' }]
+      return Array.from(tagsSet).map((tag) => ({ text: tag, value: tag }))
+    },
+
+    // 根据标签进行筛选
+    filterTasksByTag(value, row) {
+      // 检查当前任务的标签列表中是否有用户选择的标签
+      return row.tags.some((tag) => tag.tagName === value)
+    },
+
+    // 同时根据任务类型和标签进行过滤
+    filterTasksByTypeAndTag(typeName) {
+      const filteredTasks = this.tasks.filter((task) => task.taskType.typeName === typeName)
+
+      // 如果没有选择标签，返回所有任务
+      if (!this.selectedTag) {
+        return filteredTasks
+      }
+
+      // 如果有选择标签，过滤出符合标签的任务
+      return filteredTasks.filter((task) =>
+        task.tags.some((tag) => tag.tagName === this.selectedTag)
+      )
     }
   },
 
@@ -664,5 +894,13 @@ export default {
 }
 #addTaskType {
   padding: 20px;
+}
+#addTag {
+  padding: 20px;
+}
+
+#Button {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

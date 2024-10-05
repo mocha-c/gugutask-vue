@@ -6,7 +6,7 @@ import router from './router'
 import axios from 'axios'
 
 const app = createApp(App)
-axios.defaults.baseURL = 'http://localhost:3006'
+axios.defaults.baseURL = 'http://192.168.1.100:3006'
 // 添加路由导航守卫
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
