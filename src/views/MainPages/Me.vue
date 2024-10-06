@@ -17,7 +17,7 @@
           <el-input v-model="userInfo.email" :disabled="!isEditing"></el-input>
         </el-form-item>
         <el-form-item label="密码" prop="password" v-if="isEditing">
-          <el-input v-model="userInfo.password" type="password"></el-input>
+          <el-input v-model="userInfo.password" type="password" @input="removeSpaces"></el-input>
         </el-form-item>
       </el-form>
 
@@ -173,6 +173,10 @@ const cancelEdit = () => {
   isEditing.value = false
   fetchUserInfo() // 重新获取用户信息，恢复之前的数据
   errorMessage.value = ''
+}
+// 移除密码中的空格
+const removeSpaces = () => {
+  userInfo.value.password = userInfo.value.password.replace(/\s+/g, '')
 }
 
 // 组件加载时获取用户信息

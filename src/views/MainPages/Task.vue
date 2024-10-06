@@ -336,7 +336,6 @@ export default {
   },
   methods: {
     async fetchTasks() {
-      ElMessage.success('在刷新啦~别急！')
       const token = localStorage.getItem('token')
       try {
         this.fetchTaskTypes()
