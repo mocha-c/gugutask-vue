@@ -85,6 +85,16 @@
         </el-table>
       </el-collapse-item>
     </el-collapse>
+    <div id="pagination">
+      <el-pagination
+        v-if="totalPages > 0"
+        :current-page="currentPage"
+        :page-size="pageSize"
+        :page-count="totalPages"
+        layout="prev, pager, next"
+        @current-change="handlePageChange"
+      />
+    </div>
   </div>
   <el-dialog v-model="dialogFormVisible" title="编辑任务" width="500">
     <el-form
@@ -150,7 +160,7 @@
   </el-dialog>
 
   <!-- 这个对话框用来增删改任务类型 -->
-  <el-dialog v-model="taskTypeDialogVisible" title="编辑任务" width="500">
+  <el-dialog v-model="taskTypeDialogVisible" title="编辑任务类型" width="500">
     <el-form
       ref="taskTypesFormRef"
       label-width="auto"
@@ -272,34 +282,35 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 export default {
   data() {
     return {
+      // 控制各种对话框的显示状态
       tagDialogVisible: false,
       newTaskType: '',
       dialogFormVisible: false,
       taskTypeDialogVisible: false,
       editTaskTypeDialogVisible: false,
-      typedialog: false, // 用于控制编辑标签对话框的显示
+      typedialog: false,
       editTagDialogVisible: false,
 
+      // 表单数据
       ruleForm: {
         name: '',
-        existTaskTypes: [],
+        existTaskTypes: [], // 选中的任务类型
         date1: null,
         date2: null,
         detail: '',
         priority: ''
       },
       taskTypesForm: {
-        existTaskTypes: [],
-        newTaskType: ''
+        existTaskTypes: [], // 存储任务类型列表
+        newTaskType: '' // 新增任务类型
       },
       tagForm: {
-        tags: [],
-        newTag: ''
+        tags: [], // 存储任务的标签
+        newTag: '' // 新增标签
       },
-      // 编辑表单的数据
       editTagForm: {
-        tagId: null, // 存储当前标签的ID
-        tagName: '' // 存储当前标签的名称
+        tagId: null, // 当前编辑标签ID
+        tagName: '' // 当前编辑标签名称
       },
       rules: {
         name: [
@@ -324,14 +335,23 @@ export default {
       editTagNameFormRules: {
         tagName: [{ required: true, message: '要修改吗？', trigger: 'blur' }]
       },
+      // 优先级选项
       priorityOptions: ['高', '中', '低'],
+
+      // 任务数据
       tasks: [],
-      existTaskTypes: [],
+      existTaskTypes: [], // 任务类型数据
+
+      // 编辑任务类型表单
       editTaskTypeForm: {
-        // 编辑表单绑定的数据
         taskTypeId: '',
         typeName: ''
-      }
+      },
+
+      // 分页相关数据
+      currentPage: 1, // 当前页码
+      pageSize: 5, // 每页显示的条数
+      totalPages: 0 // 总页数
     }
   },
   methods: {
@@ -359,16 +379,22 @@ export default {
         this.$message.error('请求... 失败...')
       }
     },
-    async fetchTaskTypes() {
+    async fetchTaskTypes(page = 1, size = 5) {
       const token = localStorage.getItem('token') // 从本地存储获取 token
       try {
-        const response = await axios.get('/api/task-types/mine', {
+        const response = await axios.get('/api/task-types/mine/paged', {
+          params: {
+            page, // 当前页码
+            size // 每页条数
+          },
           headers: {
             Authorization: `Bearer ${token}`
           }
         })
         if (response.data.code === 20039) {
-          this.existTaskTypes = response.data.data // 存储任务类型
+          const { records, pages } = response.data.data
+          this.existTaskTypes = records // 存储当前页的任务类型
+          this.totalPages = pages // 更新总记录数
         } else {
           ElMessage.error(response.data.message)
         }
@@ -377,6 +403,11 @@ export default {
         ElMessage.error('唔..获取任务类型失败...')
       }
     },
+    handlePageChange(page) {
+      this.currentPage = page // 更新当前页
+      this.fetchTaskTypes(this.currentPage, this.pageSize) // 重新获取数据
+    },
+
     async handleDelete(taskId) {
       // 添加确认框提示
       ElMessageBox.confirm('确定要删除此任务吗？', '删除任务', {
@@ -992,5 +1023,11 @@ export default {
 #Button {
   display: flex;
   justify-content: flex-end;
+}
+
+#pagination {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
 }
 </style>
