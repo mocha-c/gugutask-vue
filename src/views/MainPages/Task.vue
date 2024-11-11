@@ -1026,7 +1026,7 @@ export default {
 }
 
 #pagination {
-  margin-bottom: 20px;
+  margin-top: 20px;
   display: flex;
   justify-content: center;
 }
