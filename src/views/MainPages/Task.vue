@@ -85,12 +85,12 @@
         </el-table>
       </el-collapse-item>
     </el-collapse>
-    <div id="pagination">
+    <div id="TaskTypespagination">
       <el-pagination
-        v-if="totalPages > 0"
-        :current-page="currentPage"
-        :page-size="pageSize"
-        :page-count="totalPages"
+        v-if="TaskTypePageFunction.totalPages > 0"
+        :current-page="TaskTypePageFunction.currentPage"
+        :page-size="TaskTypePageFunction.pageSize"
+        :page-count="TaskTypePageFunction.totalPages"
         layout="prev, pager, next"
         @current-change="handlePageChange"
       />
@@ -185,6 +185,17 @@
           </template>
         </el-table-column>
       </el-table>
+      <!-- 编辑任务类型的分页展示 -->
+      <div id="EditTaskTypespagination">
+        <el-pagination
+          v-if="EditTaskTypePageFunction.totalPages > 0"
+          :current-page="EditTaskTypePageFunction.currentPage"
+          :page-size="EditTaskTypePageFunction.pageSize"
+          :page-count="EditTaskTypePageFunction.totalPages"
+          layout="prev, pager, next"
+          @current-change="handleEditTaskTypesDialogPageChange"
+        />
+      </div>
       <div id="addTaskType">
         <el-form-item label="新增类型" prop="newTaskType">
           <el-input v-model="taskTypesForm.newTaskType" placeholder="想创建新的任务类型吗？" />
@@ -271,7 +282,7 @@
     </el-form>
   </el-dialog>
   <div id="changeType">
-    <el-button color="#08979c" plain @click="openTaskTypeDialog">修改任务类型</el-button>
+    <el-button color="#08979c" plain @click="openTaskTypeDialog(1, 5)">修改任务类型</el-button>
   </div>
 </template>
 
@@ -291,27 +302,6 @@ export default {
       typedialog: false,
       editTagDialogVisible: false,
 
-      // 表单数据
-      ruleForm: {
-        name: '',
-        existTaskTypes: [], // 选中的任务类型
-        date1: null,
-        date2: null,
-        detail: '',
-        priority: ''
-      },
-      taskTypesForm: {
-        existTaskTypes: [], // 存储任务类型列表
-        newTaskType: '' // 新增任务类型
-      },
-      tagForm: {
-        tags: [], // 存储任务的标签
-        newTag: '' // 新增标签
-      },
-      editTagForm: {
-        tagId: null, // 当前编辑标签ID
-        tagName: '' // 当前编辑标签名称
-      },
       rules: {
         name: [
           { required: true, message: '你一点计划都不做哒?!', trigger: 'blur' },
@@ -335,6 +325,29 @@ export default {
       editTagNameFormRules: {
         tagName: [{ required: true, message: '要修改吗？', trigger: 'blur' }]
       },
+
+      // 表单数据
+      ruleForm: {
+        name: '',
+        existTaskTypes: [], // 选中的任务类型
+        date1: null,
+        date2: null,
+        detail: '',
+        priority: ''
+      },
+      taskTypesForm: {
+        existTaskTypes: [], // 存储任务类型列表
+        newTaskType: '' // 新增任务类型
+      },
+      tagForm: {
+        tags: [], // 存储任务的标签
+        newTag: '' // 新增标签
+      },
+      editTagForm: {
+        tagId: null, // 当前编辑标签ID
+        tagName: '' // 当前编辑标签名称
+      },
+
       // 优先级选项
       priorityOptions: ['高', '中', '低'],
 
@@ -348,10 +361,20 @@ export default {
         typeName: ''
       },
 
-      // 分页相关数据
-      currentPage: 1, // 当前页码
-      pageSize: 5, // 每页显示的条数
-      totalPages: 0 // 总页数
+      // 任务类型展示分页
+      TaskTypePageFunction: {
+        currentPage: 1, // 当前页码
+        pageSize: 5, // 每页显示的条数
+        totalPages: 1 // 总页数
+      },
+
+      // 修改任务类型对话框展示分页
+      EditTaskTypePageFunction: {
+        currentPage: 1, // 当前页码
+        pageSize: 5, // 每页显示的条数
+        totalPages: 1, // 总页数
+        existTaskTypes: [] // 任务类型数据
+      }
     }
   },
   methods: {
@@ -379,7 +402,7 @@ export default {
         this.$message.error('请求... 失败...')
       }
     },
-    async fetchTaskTypes(page = 1, size = 5) {
+    async fetchTaskTypes(page = 1, size = this.TaskTypePageFunction.pageSize) {
       const token = localStorage.getItem('token') // 从本地存储获取 token
       try {
         const response = await axios.get('/api/task-types/mine/paged', {
@@ -394,7 +417,36 @@ export default {
         if (response.data.code === 20039) {
           const { records, pages } = response.data.data
           this.existTaskTypes = records // 存储当前页的任务类型
-          this.totalPages = pages // 更新总记录数
+          this.TaskTypePageFunction.totalPages = pages // 更新总记录数
+        } else {
+          ElMessage.error(response.data.message)
+        }
+      } catch (error) {
+        console.error(error)
+        ElMessage.error('唔..获取任务类型失败...')
+      }
+    },
+    async openEditTaskTypeDialogFetchTaskTypes(
+      page = 1,
+      size = this.EditTaskTypePageFunction.pageSize
+    ) {
+      const token = localStorage.getItem('token') // 从本地存储获取 token
+      try {
+        const response = await axios.get('/api/task-types/mine/paged', {
+          params: {
+            page, // 当前页码
+            size // 每页条数
+          },
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+        if (response.data.code === 20039) {
+          const { records, pages } = response.data.data
+          this.EditTaskTypePageFunction.existTaskTypes = records // 存储当前页的任务类型
+          this.EditTaskTypePageFunction.totalPages = pages // 更新总页数
+          console.log(this.EditTaskTypePageFunction.existTaskTypes)
+          this.taskTypesForm.existTaskTypes = records
         } else {
           ElMessage.error(response.data.message)
         }
@@ -404,8 +456,15 @@ export default {
       }
     },
     handlePageChange(page) {
-      this.currentPage = page // 更新当前页
-      this.fetchTaskTypes(this.currentPage, this.pageSize) // 重新获取数据
+      this.TaskTypePageFunction.currentPage = page // 更新当前页
+      this.fetchTaskTypes(this.TaskTypePageFunction.currentPage, this.TaskTypePageFunction.pageSize) // 重新获取数据
+    },
+    handleEditTaskTypesDialogPageChange(page) {
+      this.EditTaskTypePageFunction.currentPage = page // 更新当前页
+      this.openEditTaskTypeDialogFetchTaskTypes(
+        this.EditTaskTypePageFunction.currentPage,
+        this.EditTaskTypePageFunction.pageSize
+      ) // 重新获取数据
     },
 
     async handleDelete(taskId) {
@@ -448,16 +507,12 @@ export default {
       localStorage.setItem('currentTask', JSON.stringify(task))
       this.dialogFormVisible = true // 唤醒对话框
     },
-    async openTaskTypeDialog() {
+    async openTaskTypeDialog(page = 1, size = 5) {
       this.taskTypesForm.newTaskType = ''
+      this.EditTaskTypePageFunction.currentPage = 1
       try {
         // 调用现有的 fetchTaskTypes 获取数据
-        await this.fetchTaskTypes()
-
-        // 这里的 this.existTaskTypes 已经被 fetchTaskTypes 方法赋值
-        // 将 existTaskTypes 赋值给表单的 existTaskTypes 字段
-        this.taskTypesForm.existTaskTypes = this.existTaskTypes
-
+        await this.openEditTaskTypeDialogFetchTaskTypes(page, size)
         // 显示任务类型对话框
         this.taskTypeDialogVisible = true
       } catch (error) {
@@ -618,14 +673,17 @@ export default {
             )
 
             if (response.data.code === 20039) {
-              // 添加成功后，将新任务类型加入到前端列表
-              this.taskTypesForm.existTaskTypes.push(response.data.data)
+              // 添加成功后
+              // 调用现有的 openEditTaskTypeDialogFetchTaskTypes 获取数据
+
+              await this.openEditTaskTypeDialogFetchTaskTypes(
+                1,
+                this.EditTaskTypePageFunction.pageSize
+              )
+              this.EditTaskTypePageFunction.currentPage = 1
+              await this.fetchTaskTypes(1, this.TaskTypePageFunction.pageSize)
               this.taskTypesForm.newTaskType = '' // 清空输入框
               ElMessage.success('任务类型添加成功!( •̀ ω •́ )✧')
-              // 刷新视图
-              this.$nextTick(() => {
-                this.$refs.taskTypesFormRef.clearValidate() // 清除表单验证状态
-              })
             } else {
               ElMessage.error('唔..添加任务类型失败:' + response.data.message)
             }
@@ -664,11 +722,18 @@ export default {
           })
 
           if (response.data.code === 20039) {
-            // 删除成功后，移除前端的数据
-            this.taskTypesForm.existTaskTypes = this.taskTypesForm.existTaskTypes.filter(
-              (type) => type.taskTypeId !== taskType.taskTypeId
+            // 删除成功后
+            // 调用现有的 openEditTaskTypeDialogFetchTaskTypes 获取数据
+            await this.openEditTaskTypeDialogFetchTaskTypes(
+              this.EditTaskTypePageFunction.currentPage,
+              this.EditTaskTypePageFunction.pageSize
             )
-            this.fetchTasks() // 重新获取任务数据
+            await this.fetchTaskTypes(
+              this.TaskTypePageFunction.currentPage,
+              this.TaskTypePageFunction.pageSize
+            )
+            this.taskTypesForm.newTaskType = '' // 清空输入框
+
             ElMessage.success('删除成功!( •̀ ω •́ )✧')
           } else {
             ElMessage.error(response.data.message)
@@ -723,13 +788,16 @@ export default {
 
             if (response.data.code === 20039) {
               // 成功后更新任务类型列表中的名称
-              const taskTypeIndex = this.taskTypesForm.existTaskTypes.findIndex(
-                (type) => type.taskTypeId === this.editTaskTypeForm.taskTypeId
+              // 调用现有的 openEditTaskTypeDialogFetchTaskTypes 获取数据
+              await this.openEditTaskTypeDialogFetchTaskTypes(
+                this.EditTaskTypePageFunction.currentPage,
+                this.EditTaskTypePageFunction.pageSize
               )
-              if (taskTypeIndex !== -1) {
-                this.taskTypesForm.existTaskTypes[taskTypeIndex].typeName =
-                  this.editTaskTypeForm.typeName
-              }
+              await this.fetchTaskTypes(
+                this.TaskTypePageFunction.currentPage,
+                this.TaskTypePageFunction.pageSize
+              )
+
               // 关闭对话框并清空表单
               this.cancelEditTaskType()
               ElMessage.success('任务类型编辑成功!')
@@ -1025,7 +1093,12 @@ export default {
   justify-content: flex-end;
 }
 
-#pagination {
+#TaskTypespagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+#EditTaskTypespagination {
   margin-top: 20px;
   display: flex;
   justify-content: center;
