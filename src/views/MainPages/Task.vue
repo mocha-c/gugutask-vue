@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-collapse>
+    <el-collapse v-model="activeNames">
       <el-collapse-item v-for="(type, index) in existTaskTypes" :key="index" :name="type.typeName">
         <template #title>
           <span>{{ type.typeName }}</span>
@@ -374,7 +374,9 @@ export default {
         pageSize: 5, // 每页显示的条数
         totalPages: 1, // 总页数
         existTaskTypes: [] // 任务类型数据
-      }
+      },
+
+      activeNames: [] // 存储当前展开的任务类型
     }
   },
   methods: {
@@ -457,6 +459,7 @@ export default {
     },
     handlePageChange(page) {
       this.TaskTypePageFunction.currentPage = page // 更新当前页
+      this.activeNames = []
       this.fetchTaskTypes(this.TaskTypePageFunction.currentPage, this.TaskTypePageFunction.pageSize) // 重新获取数据
     },
     handleEditTaskTypesDialogPageChange(page) {
