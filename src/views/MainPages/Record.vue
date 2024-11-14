@@ -192,7 +192,8 @@ const fetchTaskTypes = async () => {
     })
 
     if (response.data.code === 20039) {
-      taskTypes.value = response.data.data // 设置任务类型数据
+      // 获取任务类型数据后直接倒序排列
+      taskTypes.value = response.data.data.sort((a, b) => b.taskTypeId - a.taskTypeId)
     } else {
       console.error('〒▽〒:', response.data.message)
     }
