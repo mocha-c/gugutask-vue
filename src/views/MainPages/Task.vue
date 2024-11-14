@@ -1,11 +1,15 @@
 <template>
   <div>
-    <el-collapse v-model="activeNames">
-      <el-collapse-item v-for="(type, index) in existTaskTypes" :key="index" :name="type.typeName">
+    <el-collapse v-model="collapseData.activeNames" @change="handleCollapseChange">
+      <el-collapse-item
+        v-for="(type, index) in collapseData.existTaskTypes"
+        :key="index"
+        :name="type.taskTypeId"
+      >
         <template #title>
           <span>{{ type.typeName }}</span>
         </template>
-        <el-table :data="filterTasksByType(type.typeName)" style="width: 100%" border>
+        <el-table :data="type.tasks || []" style="width: 100%" border>
           <el-table-column prop="date1" label="日期" sortable>
             <template #default="scope">
               <el-popover trigger="hover" placement="bottom" width="auto">
@@ -375,8 +379,10 @@ export default {
         totalPages: 1, // 总页数
         existTaskTypes: [] // 任务类型数据
       },
-
-      activeNames: [] // 存储当前展开的任务类型
+      collapseData: {
+        activeNames: [], // 存储当前展开的任务类型
+        existTaskTypes: [{ taskTypeId: '', typeName: '', tasks: [] }]
+      }
     }
   },
   methods: {
@@ -419,13 +425,24 @@ export default {
         if (response.data.code === 20039) {
           const { records, pages } = response.data.data
           this.existTaskTypes = records // 存储当前页的任务类型
+          // 将任务类型存储到 collapseData.existTaskTypes
+          this.collapseData.existTaskTypes = records.map((record) => ({
+            taskTypeId: record.taskTypeId,
+            typeName: record.typeName,
+            tasks: [] // 初始化空任务列表
+          }))
           this.TaskTypePageFunction.totalPages = pages // 更新总记录数
         } else {
           ElMessage.error(response.data.message)
         }
       } catch (error) {
-        console.error(error)
-        ElMessage.error('唔..获取任务类型失败...')
+        if (error.response && error.response.status === 401) {
+          localStorage.removeItem('token')
+          ElMessage.error('登录过期啦，重新登录吧')
+        } else {
+          console.error(error)
+          ElMessage.error('唔..获取任务类型失败...')
+        }
       }
     },
     async openEditTaskTypeDialogFetchTaskTypes(
@@ -1050,11 +1067,67 @@ export default {
         console.error('〒▽〒:', error)
         ElMessage.error('〒▽〒出问题了')
       }
+    },
+    async handleCollapseChange(activeNames) {
+      if (activeNames.length > 0) {
+        const lastExpandedTaskTypeId = activeNames[activeNames.length - 1]
+        await this.fetchTaskDataByType(lastExpandedTaskTypeId)
+      }
+    },
+    async fetchTaskDataByType(taskTypeId) {
+      const token = localStorage.getItem('token')
+
+      try {
+        const response = await axios.get('/api/tasks/user/tasktype', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          params: {
+            taskTypeId
+          }
+        })
+
+        if (response.data.code === 20039) {
+          const tasks = response.data.data.map((task) => ({
+            ...task,
+            taskStatus: task.taskStatus === '已完成' // 转换任务状态
+          }))
+
+          // 找到对应的任务类型并更新 tasks
+          const typeIndex = this.collapseData.existTaskTypes.findIndex(
+            (type) => String(type.taskTypeId) === String(taskTypeId)
+          )
+
+          if (typeIndex !== -1) {
+            this.collapseData.existTaskTypes[typeIndex].tasks = tasks
+            console.log(`任务已更新：`, this.collapseData.existTaskTypes[typeIndex])
+          } else {
+            console.error(`未找到 taskTypeId 为 ${taskTypeId} 的任务类型`)
+          }
+
+          console.log('任务数据加载成功')
+        } else {
+          ElMessage.error(response.data.message)
+        }
+      } catch (error) {
+        console.error('请求失败详细信息:', error) // 打印完整的错误对象
+
+        if (error.response) {
+          console.error('响应错误信息:', error.response)
+          ElMessage.error(`请求失败: ${error.response.data.message || '未知错误'}`)
+        } else if (error.request) {
+          console.error('请求未收到响应:', error.request)
+          ElMessage.error('网络请求未收到服务器响应，请检查网络连接')
+        } else {
+          console.error('设置请求时发生错误:', error.message)
+          ElMessage.error(`请求出错: ${error.message}`)
+        }
+      }
     }
   },
 
   mounted() {
-    this.fetchTasks()
+    this.fetchTaskTypes()
   }
 }
 </script>
