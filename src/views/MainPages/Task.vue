@@ -7,7 +7,7 @@
         :name="type.taskTypeId"
       >
         <template #title>
-          <span>{{ type.typeName }}</span>
+          <span>{{ type.typeName }} </span>
         </template>
         <el-table :data="type.tasks || []" style="width: 100%" border>
           <el-table-column prop="date1" label="日期" sortable>
@@ -87,6 +87,16 @@
             </template>
           </el-table-column>
         </el-table>
+        <div id="Taskspagination">
+          <el-pagination
+            v-if="collapseData.pagination.total > 0"
+            :current-page="collapseData.pagination.currentPage"
+            :page-size="collapseData.pagination.pageSize"
+            :page-count="collapseData.pagination.total"
+            layout="prev, pager, next"
+            @current-change="handleTasksPageChange"
+          />
+        </div>
       </el-collapse-item>
     </el-collapse>
     <div id="TaskTypespagination">
@@ -381,7 +391,19 @@ export default {
       },
       collapseData: {
         activeNames: [], // 存储当前展开的任务类型
-        existTaskTypes: [{ taskTypeId: '', typeName: '', tasks: [] }]
+        existTaskTypes: [
+          {
+            taskTypeId: '',
+            typeName: '',
+            tasks: []
+          }
+        ],
+        pagination: {
+          total: 1,
+          currentPage: 1,
+          pages: 1,
+          pageSize: 6
+        }
       }
     }
   },
@@ -567,16 +589,7 @@ export default {
         }
       }
     },
-    filterTasksByType(typeName) {
-      // 过滤符合任务类型的任务
-      const filteredTasks = this.tasks.filter((task) => task.taskType.typeName === typeName)
-      // 去重逻辑，确保不返回重复的任务
-      const uniqueTasks = Array.from(new Set(filteredTasks.map((task) => task.taskId))).map((id) =>
-        filteredTasks.find((task) => task.taskId === id)
-      )
 
-      return uniqueTasks
-    },
     updateTaskStatus(task) {
       const newStatus = !task.taskStatus // 计算新状态
       const token = localStorage.getItem('token')
@@ -704,6 +717,7 @@ export default {
               await this.fetchTaskTypes(1, this.TaskTypePageFunction.pageSize)
               this.taskTypesForm.newTaskType = '' // 清空输入框
               ElMessage.success('任务类型添加成功!( •̀ ω •́ )✧')
+              this.collapseData.activeNames = []
             } else {
               ElMessage.error('唔..添加任务类型失败:' + response.data.message)
             }
@@ -753,7 +767,7 @@ export default {
               this.TaskTypePageFunction.pageSize
             )
             this.taskTypesForm.newTaskType = '' // 清空输入框
-
+            this.collapseData.activeNames = []
             ElMessage.success('删除成功!( •̀ ω •́ )✧')
           } else {
             ElMessage.error(response.data.message)
@@ -820,6 +834,7 @@ export default {
 
               // 关闭对话框并清空表单
               this.cancelEditTaskType()
+              this.collapseData.activeNames = []
               ElMessage.success('任务类型编辑成功!')
             } else {
               ElMessage.error('编辑失败: ' + response.data.message)
@@ -1074,8 +1089,24 @@ export default {
         await this.fetchTaskDataByType(lastExpandedTaskTypeId)
       }
     },
-    async fetchTaskDataByType(taskTypeId) {
+    async fetchTaskDataByType(taskTypeId, page = null, size = null) {
       const token = localStorage.getItem('token')
+
+      // 获取任务类型对应的分页信息
+      const typeIndex = this.collapseData.existTaskTypes.findIndex(
+        (type) => String(type.taskTypeId) === String(taskTypeId)
+      )
+
+      if (typeIndex === -1) {
+        console.error(`未找到 taskTypeId 为 ${taskTypeId} 的任务类型`)
+        return
+      }
+
+      const taskType = this.collapseData.existTaskTypes[typeIndex]
+
+      // 确保有分页默认值
+      const currentPage = page || this.collapseData.pagination.currentPage || 1
+      const pageSize = size || this.collapseData.pagination.pageSize || 5
 
       try {
         const response = await axios.get('/api/tasks/user/tasktype', {
@@ -1083,29 +1114,40 @@ export default {
             Authorization: `Bearer ${token}`
           },
           params: {
-            taskTypeId
+            taskTypeId,
+            page: currentPage,
+            size: pageSize
           }
         })
 
         if (response.data.code === 20039) {
-          const tasks = response.data.data.map((task) => ({
-            ...task,
-            taskStatus: task.taskStatus === '已完成' // 转换任务状态
+          const { records, total, current, pages } = response.data.data
+          const tasks = records.map((task) => ({
+            taskId: task.taskId,
+            taskName: task.taskName,
+            taskDetail: task.taskDetail,
+            taskPriority: task.taskPriority,
+            date1: task.date1,
+            date2: task.date2,
+            taskStatus: task.taskStatus === '已完成', // 布尔化任务状态
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt,
+            tags: task.tags,
+            taskTypeId: task.taskType.taskTypeId,
+            taskTypeName: task.taskType.typeName,
+            taskTypeCreatedAt: task.taskType.createdAt,
+            taskTypeUpdatedAt: task.taskType.updatedAt
           }))
 
-          // 找到对应的任务类型并更新 tasks
-          const typeIndex = this.collapseData.existTaskTypes.findIndex(
-            (type) => String(type.taskTypeId) === String(taskTypeId)
-          )
-
-          if (typeIndex !== -1) {
-            this.collapseData.existTaskTypes[typeIndex].tasks = tasks
-            console.log(`任务已更新：`, this.collapseData.existTaskTypes[typeIndex])
-          } else {
-            console.error(`未找到 taskTypeId 为 ${taskTypeId} 的任务类型`)
+          // 更新任务类型数据及其分页信息
+          this.collapseData.existTaskTypes[typeIndex] = {
+            ...taskType,
+            tasks
           }
+          this.collapseData.pagination.currentPage = current
+          this.collapseData.pagination.total = pages
 
-          console.log('任务数据加载成功')
+          console.log(`任务已更新：`, this.collapseData.existTaskTypes[typeIndex])
         } else {
           ElMessage.error(response.data.message)
         }
@@ -1175,6 +1217,12 @@ export default {
   justify-content: center;
 }
 #EditTaskTypespagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+#Taskspagination {
   margin-top: 20px;
   display: flex;
   justify-content: center;
