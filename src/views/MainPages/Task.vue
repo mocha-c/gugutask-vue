@@ -87,6 +87,20 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-row style="margin-bottom: 10px" justify="end">
+          <el-select
+            v-model="type.pagination.pageSize"
+            placeholder="选择每页条数"
+            @change="(size) => handlePageSizeChange(size, type.taskTypeId)"
+          >
+            <el-option
+              v-for="size in collapseData.pageSizeOptions"
+              :key="size"
+              :label="`${size} 条/页`"
+              :value="size"
+            />
+          </el-select>
+        </el-row>
         <div id="Taskspagination">
           <el-pagination
             v-if="type.pagination.total"
@@ -390,6 +404,8 @@ export default {
         existTaskTypes: [] // 任务类型数据
       },
       collapseData: {
+        pageSizeOptions: [5, 10, 20, 50, 10000], // 分页大小选项
+        currentPageSize: 10, // 默认每页显示5条
         activeNames: [], // 存储当前展开的任务类型
         existTaskTypes: [
           {
@@ -1173,7 +1189,25 @@ export default {
       }
     },
     handleTasksPageChange(page, taskTypeId) {
-      this.fetchTaskDataByType(taskTypeId, page)
+      // 保持页面切换时同步分页
+      const taskType = this.collapseData.existTaskTypes.find(
+        (type) => type.taskTypeId === taskTypeId
+      )
+
+      if (taskType) {
+        taskType.pagination.currentPage = page
+        this.fetchTaskDataByType(taskTypeId, page, taskType.pagination.pageSize)
+      }
+    },
+    handlePageSizeChange(newSize, taskTypeId) {
+      const taskType = this.collapseData.existTaskTypes.find(
+        (type) => type.taskTypeId === taskTypeId
+      )
+      if (taskType) {
+        taskType.pagination.pageSize = newSize
+        taskType.pagination.currentPage = 1 // 更改分页大小时，重置到第一页
+        this.fetchTaskDataByType(taskTypeId, 1, newSize)
+      }
     }
   },
 
