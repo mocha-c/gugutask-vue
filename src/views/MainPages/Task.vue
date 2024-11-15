@@ -10,7 +10,7 @@
           <span>{{ type.typeName }} </span>
         </template>
         <el-table :data="type.tasks || []" style="width: 100%" border>
-          <el-table-column prop="date1" label="日期" sortable>
+          <el-table-column prop="date1" label="截止日期" sortable>
             <template #default="scope">
               <el-popover trigger="hover" placement="bottom" width="auto">
                 <template #default>
