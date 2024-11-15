@@ -87,7 +87,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-row style="margin-bottom: 10px" justify="end">
+        <el-row id="pageSizeSelect" class="small-select">
           <el-select
             v-model="type.pagination.pageSize"
             placeholder="选择每页条数"
@@ -517,7 +517,7 @@ export default {
     },
     handlePageChange(page) {
       this.TaskTypePageFunction.currentPage = page // 更新当前页
-      this.activeNames = []
+      this.collapseData.activeNames = []
       this.fetchTaskTypes(this.TaskTypePageFunction.currentPage, this.TaskTypePageFunction.pageSize) // 重新获取数据
     },
     handleEditTaskTypesDialogPageChange(page) {
@@ -1266,8 +1266,19 @@ export default {
 }
 
 #Taskspagination {
-  margin-top: 20px;
+  margin-top: 0px;
   display: flex;
   justify-content: center;
+}
+.small-select {
+  display: flex;
+  justify-content: flex-end;
+  width: auto;
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.small-select .el-select {
+  width: 120px; /* 控制下拉框的宽度 */
 }
 </style>
