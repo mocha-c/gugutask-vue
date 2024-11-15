@@ -89,12 +89,12 @@
         </el-table>
         <div id="Taskspagination">
           <el-pagination
-            v-if="collapseData.pagination.total > 0"
-            :current-page="collapseData.pagination.currentPage"
-            :page-size="collapseData.pagination.pageSize"
-            :page-count="collapseData.pagination.total"
+            v-if="type.pagination.total"
+            :current-page="type.pagination.currentPage"
+            :page-size="type.pagination.pageSize"
+            :page-count="type.pagination.total"
             layout="prev, pager, next"
-            @current-change="handleTasksPageChange"
+            @current-change="(page) => handleTasksPageChange(page, type.taskTypeId)"
           />
         </div>
       </el-collapse-item>
@@ -395,15 +395,14 @@ export default {
           {
             taskTypeId: '',
             typeName: '',
-            tasks: []
+            tasks: [],
+            pagination: {
+              total: 0,
+              currentPage: 1,
+              pageSize: 5
+            }
           }
-        ],
-        pagination: {
-          total: 1,
-          currentPage: 1,
-          pages: 1,
-          pageSize: 6
-        }
+        ]
       }
     }
   },
@@ -454,6 +453,10 @@ export default {
             tasks: [] // 初始化空任务列表
           }))
           this.TaskTypePageFunction.totalPages = pages // 更新总记录数
+          this.collapseData.existTaskTypes = this.collapseData.existTaskTypes.map((type) => ({
+            ...type,
+            pagination: type.pagination || { total: 0, currentPage: 1, pageSize: 5 }
+          }))
         } else {
           ElMessage.error(response.data.message)
         }
@@ -1104,10 +1107,9 @@ export default {
 
       const taskType = this.collapseData.existTaskTypes[typeIndex]
 
-      // 确保有分页默认值
-      const currentPage = page || this.collapseData.pagination.currentPage || 1
-      const pageSize = size || this.collapseData.pagination.pageSize || 5
-
+      // 确保分页有默认值
+      const currentPage = page || taskType.pagination?.currentPage || 1
+      const pageSize = size || taskType.pagination?.pageSize || 5
       try {
         const response = await axios.get('/api/tasks/user/tasktype', {
           headers: {
@@ -1142,11 +1144,15 @@ export default {
           // 更新任务类型数据及其分页信息
           this.collapseData.existTaskTypes[typeIndex] = {
             ...taskType,
-            tasks
+            tasks,
+            pagination: {
+              total: pages,
+              currentPage: current,
+              pageSize: pageSize
+            }
           }
-          this.collapseData.pagination.currentPage = current
-          this.collapseData.pagination.total = pages
-
+          console.log('collapseData:', this.collapseData)
+          console.log('existTaskTypes:', this.collapseData.existTaskTypes)
           console.log(`任务已更新：`, this.collapseData.existTaskTypes[typeIndex])
         } else {
           ElMessage.error(response.data.message)
@@ -1165,6 +1171,9 @@ export default {
           ElMessage.error(`请求出错: ${error.message}`)
         }
       }
+    },
+    handleTasksPageChange(page, taskTypeId) {
+      this.fetchTaskDataByType(taskTypeId, page)
     }
   },
 
