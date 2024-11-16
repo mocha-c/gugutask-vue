@@ -367,7 +367,7 @@ export default {
 
       // 任务数据
       tasks: [],
-      existTaskTypes: [], // 任务类型数据
+      existTaskTypes: [], // 总的任务类型数据
 
       // 编辑任务类型表单
       editTaskTypeForm: {
@@ -433,6 +433,36 @@ export default {
         this.$message.error('请求... 失败...')
       }
     },
+
+    async fetchAllTaskTypes() {
+      const token = localStorage.getItem('token') // 从本地存储获取 token
+      try {
+        const response = await axios.get('/api/task-types/mine', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+        if (response.data.code === 20039) {
+          const records = response.data.data
+          // 按 createdAt 倒序排列
+          // 这个任务类型会显示在编辑任务的界面
+          this.existTaskTypes = records.sort(
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+          )
+        } else {
+          ElMessage.error(response.data.message)
+        }
+      } catch (error) {
+        if (error.response && error.response.status === 401) {
+          localStorage.removeItem('token')
+          ElMessage.error('登录过期啦，重新登录吧')
+        } else {
+          console.error(error)
+          ElMessage.error('唔..获取任务类型失败...')
+        }
+      }
+    },
+
     async fetchTaskTypes(page = 1, size = this.TaskTypePageFunction.pageSize) {
       const token = localStorage.getItem('token') // 从本地存储获取 token
       try {
@@ -447,7 +477,6 @@ export default {
         })
         if (response.data.code === 20039) {
           const { records, pages } = response.data.data
-          this.existTaskTypes = records // 存储当前页的任务类型
           // 将任务类型存储到 collapseData.existTaskTypes
           this.collapseData.existTaskTypes = records.map((record) => ({
             taskTypeId: record.taskTypeId,
@@ -531,9 +560,25 @@ export default {
             })
             if (response.data.code === 20039) {
               ElMessage.success('删除~成功！')
-              // 重新获取任务列表以更新视图
-              this.fetchTasks()
-              this.fetchTaskTypes()
+
+              // 获取任务所属的任务类型 ID
+              const taskType = this.collapseData.existTaskTypes.find((type) =>
+                type.tasks.some((task) => task.taskId === taskId)
+              )
+
+              if (taskType) {
+                const { taskTypeId } = taskType
+                const { currentPage, pageSize } = taskType.pagination
+
+                // 检查当前页任务数，如果删除后当前页任务为空，跳转到上一页
+                const tasksOnCurrentPage = taskType.tasks.length - 1 // 删除后剩余任务数
+                const newPage = tasksOnCurrentPage > 0 ? currentPage : Math.max(currentPage - 1, 1)
+
+                // 重新获取当前任务类型的任务数据，刷新视图
+                await this.fetchTaskDataByType(taskTypeId, newPage, pageSize)
+              } else {
+                console.warn('未找到任务所属的任务类型')
+              }
             } else {
               ElMessage.error('〒▽〒:' + response.data.message)
             }
@@ -542,7 +587,9 @@ export default {
             ElMessage.error('失败...')
           }
         })
-        .catch(() => {})
+        .catch(() => {
+          // 用户取消操作
+        })
     },
     async openDialog(task) {
       console.log(task)
@@ -553,10 +600,11 @@ export default {
       this.ruleForm.detail = task.taskDetail || '' // 使用 taskDetail
       this.ruleForm.priority = task.taskPriority || '' // 使用 taskPriority
       localStorage.setItem('currentTask', JSON.stringify(task))
-      this.$nextTick(() => {
-        this.$refs.editTaskFormRef.clearValidate() // 清除表单验证状态
-      })
+      this.fetchAllTaskTypes()
       this.dialogFormVisible = true // 唤醒对话框
+      this.$nextTick(() => {
+        this.$refs.ruleFormRef.clearValidate() // 清除表单验证状态
+      })
     },
     async openTaskTypeDialog(page = 1, size = 5) {
       this.taskTypesForm.newTaskType = ''
@@ -573,7 +621,7 @@ export default {
     resetForm() {
       const currentTask = JSON.parse(localStorage.getItem('currentTask')) // 从本地存储获取任务并解析
 
-      if (currentTask) {
+      if (currentTask && currentTask.taskType && currentTask.taskType.taskTypeId) {
         // 确保 currentTask 存在
         this.ruleForm.name = currentTask.taskName || '' // 使用 taskName
         this.ruleForm.existTaskTypes = currentTask.taskType.taskTypeId || null // 获取 taskTypeId
@@ -587,6 +635,7 @@ export default {
         this.ruleForm.detail = currentTask.taskDetail || '' // 使用 taskDetail
         this.ruleForm.priority = currentTask.taskPriority || '' // 使用 taskPriority
       } else {
+        console.warn('currentTask 或 taskType 数据不完整')
         // 如果没有当前任务，可以重置表单到默认状态
         this.ruleForm = {
           name: '',
@@ -642,9 +691,10 @@ export default {
         if (valid) {
           const token = localStorage.getItem('token') // 从本地存储获取 token
           const currentTask = JSON.parse(localStorage.getItem('currentTask')) // 获取当前任务
-
+          const taskTypeId = currentTask.taskTypeId
           if (currentTask) {
             const taskId = currentTask.taskId // 获取 taskId
+
             console.log(`更新任务 ID: ${taskId}`) // 调试输出
 
             // 准备要发送的数据
@@ -675,11 +725,27 @@ export default {
               })
               .then((response) => {
                 if (response.data.code === 20039) {
-                  // 根据实际情况修改状态码
+                  console.log('existTaskTypes:', this.collapseData.existTaskTypes)
+                  console.log('taskTypeId:', taskTypeId)
+
                   ElMessage.success('更新成功！')
-                  this.dialogFormVisible = false // 关闭对话框
+
                   this.resetForm(formEl) // 重置表单
-                  this.fetchTasks() // 重新获取任务列表
+                  // 获取任务类型 ID 和分页信息
+                  const taskType = this.collapseData.existTaskTypes.find(
+                    (type) => String(type.taskTypeId) === String(taskTypeId)
+                  )
+                  console.log('分页信息:', taskType.pagination)
+                  console.log('匹配的任务类型:', taskType)
+                  this.dialogFormVisible = false // 关闭对话框
+                  if (taskType) {
+                    const { currentPage, pageSize } = taskType.pagination
+
+                    // 重新获取当前任务类型的任务数据，刷新视图
+                    this.fetchTaskDataByType(taskTypeId, currentPage, pageSize)
+                  } else {
+                    ElMessage.warning('未找到对应任务类型的分页信息')
+                  }
                 } else {
                   ElMessage.error(`更新失败: ${response.data.message}`)
                 }
