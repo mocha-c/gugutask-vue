@@ -50,8 +50,16 @@
           <el-table-column label="标签" prop="tags">
             <template #default="scope">
               <div>
+                <!-- 标签列表 -->
+                <div v-if="scope.row.tags && scope.row.tags.length > 0">
+                  <el-tag v-for="tag in scope.row.tags" :key="tag.tagId" type="primary">
+                    {{ tag.tagName }}
+                  </el-tag>
+                </div>
+                <div v-else>无标签</div>
+
+                <!-- 修改按钮 -->
                 <div id="editTagButton">
-                  <!-- 添加修改按钮 -->
                   <el-button size="small" @click="openTagDialog(scope.row)">修改</el-button>
                 </div>
               </div>
@@ -1007,13 +1015,13 @@ export default {
         }
       })
     },
-    // 新增标签并关联到任务
     async addTagToTask() {
       // 1. 手动验证输入框是否为空
       if (!this.tagForm.newTag.trim()) {
         ElMessage.error('不可以为空嗷')
         return // 如果为空，则直接返回，不执行后续代码
       }
+
       const token = localStorage.getItem('token')
       const newTag = { tagName: this.tagForm.newTag } // 准备新增标签的数据
 
@@ -1024,12 +1032,12 @@ export default {
         })
 
         if (tagResponse.data.code === 20039) {
-          const tagId = tagResponse.data.data.tagId || tagResponse.data.data.id // 检查返回的tagId
-          console.log('新增标签成功，标签ID:', tagId) // 检查标签新增是否成功
+          const tagId = tagResponse.data.data.tagId || tagResponse.data.data.id
+          console.log('新增标签成功，标签ID:', tagId)
 
           // 2. 发送请求，将标签添加到任务
           const taskTagData = { taskId: this.tagForm.taskId, tagId }
-          console.log('准备关联标签到任务，taskId:', this.tagForm.taskId, 'tagId:', tagId) // 确认关联请求即将发送
+          console.log('准备关联标签到任务，taskId:', this.tagForm.taskId, 'tagId:', tagId)
 
           const taskTagResponse = await axios.post('/api/task-tags', taskTagData, {
             headers: { Authorization: `Bearer ${token}` }
@@ -1039,24 +1047,37 @@ export default {
             ElMessage.success('标签添加成功!')
             console.log('关联标签到任务成功')
 
-            // 3. 将返回的 tagId 和 taskId 对应存储到标签列表
-            const newTagData = {
-              tagId: taskTagResponse.data.data.tagId, // 后端返回的 tagId
-              tagName: this.tagForm.newTag, // 使用新标签的名称
-              taskId: taskTagResponse.data.data.taskId // 后端返回的 taskId
+            // 确保任务存在，更新标签列表
+            const taskTypeId = this.tasks.find(
+              (task) => task.taskId === this.tagForm.taskId
+            )?.taskTypeId
+            if (!taskTypeId) {
+              console.error('未找到匹配任务的任务类型，任务ID:', this.tagForm.taskId)
+              ElMessage.error('未找到任务对应的任务类型')
+              return
             }
 
-            // 更新当前任务的标签列表
-            const task = this.tasks.find((task) => task.taskId === this.tagForm.taskId)
-            if (task) {
-              // 将新标签推入当前任务的标签列表
-              task.tags.push(newTagData)
-              this.fetchTasks()
-              // 同时更新对话框中的标签列表
-              this.tagForm.tags = [...task.tags] // 重新赋值，触发 Vue 的响应式更新
+            // 重新加载当前任务类型的数据
+            const taskType = this.collapseData.existTaskTypes.find(
+              (type) => type.taskTypeId === taskTypeId
+            )
+
+            if (!taskType) {
+              console.error('未找到任务类型:', taskTypeId)
+              ElMessage.error('未找到对应的任务类型')
+              return
             }
 
-            this.tagForm.newTag = '' // 清空输入框
+            const { currentPage, pageSize } = taskType.pagination
+
+            // 确保最新数据更新
+            await this.fetchTaskDataByType(taskTypeId, currentPage, pageSize)
+
+            // 手动更新 tasks 以同步到当前视图
+            this.tasks = this.collapseData.existTaskTypes.flatMap((type) => type.tasks)
+
+            // 清空新标签输入框
+            this.tagForm.newTag = ''
           } else {
             ElMessage.error('关联标签失败: ' + taskTagResponse.data.message)
           }
@@ -1064,7 +1085,7 @@ export default {
           ElMessage.error('新增标签失败: ' + tagResponse.data.message)
         }
       } catch (error) {
-        console.error('请求错误:', error) // 更明确的错误信息
+        console.error('请求错误:', error)
         ElMessage.error('操作失败，请检查网络或服务器。')
       }
     },
@@ -1238,6 +1259,10 @@ export default {
               pageSize: pageSize
             }
           }
+
+          // 同步任务到 this.tasks
+          this.tasks = tasks
+
           console.log('collapseData:', this.collapseData)
           console.log('existTaskTypes:', this.collapseData.existTaskTypes)
           console.log(`任务已更新：`, this.collapseData.existTaskTypes[typeIndex])
