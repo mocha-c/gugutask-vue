@@ -110,7 +110,7 @@
     <el-form
       ref="ruleFormRef"
       :model="ruleForm"
-      :rules="rules"
+      :rules="rules.editTaskFormRules"
       label-width="auto"
       status-icon
       :size="formSize"
@@ -313,27 +313,31 @@ export default {
       editTagDialogVisible: false,
 
       rules: {
-        name: [
-          { required: true, message: '你一点计划都不做哒?!', trigger: 'blur' },
-          { min: 2, max: 20, message: '至少写俩字儿呗', trigger: 'blur' }
-        ],
-        existTaskTypes: [{ required: true, message: '是什么类型呢', trigger: 'change' }],
-        date1: [{ type: 'date', required: true, message: '这事儿啥时候结束啊', trigger: 'change' }],
-        date2: [{ type: 'date', required: false }],
-        priority: [{ required: true, message: '急不?不急晚点做', trigger: 'change' }],
-        detail: [{ required: false }]
-      },
-      taskTypesFormRules: {
-        newTaskType: [{ required: true, message: '唔，是什么类型？', trigger: 'blur' }]
-      },
-      editTaskTypeFormRules: {
-        typeName: [{ required: true, message: '要修改吗？', trigger: 'blur' }]
-      },
-      tagFormRules: {
-        newTag: [{ required: true, message: '是什么标签呢？', trigger: 'blur' }]
-      },
-      editTagNameFormRules: {
-        tagName: [{ required: true, message: '要修改吗？', trigger: 'blur' }]
+        editTaskFormRules: {
+          name: [
+            { required: true, message: '你一点计划都不做哒?!', trigger: 'blur' },
+            { min: 2, max: 20, message: '至少写俩字儿呗', trigger: 'blur' }
+          ],
+          existTaskTypes: [{ required: true, message: '是什么类型呢', trigger: 'change' }],
+          date1: [
+            { type: 'date', required: true, message: '这事儿啥时候结束啊', trigger: 'change' }
+          ],
+          date2: [{ type: 'date', required: false }],
+          priority: [{ required: true, message: '急不?不急晚点做', trigger: 'change' }],
+          detail: [{ required: false }]
+        },
+        taskTypesFormRules: {
+          newTaskType: [{ required: true, message: '唔，是什么类型？', trigger: 'blur' }]
+        },
+        editTaskTypeFormRules: {
+          typeName: [{ required: true, message: '要修改吗？', trigger: 'blur' }]
+        },
+        tagFormRules: {
+          newTag: [{ required: true, message: '是什么标签呢？', trigger: 'blur' }]
+        },
+        editTagNameFormRules: {
+          tagName: [{ required: true, message: '要修改吗？', trigger: 'blur' }]
+        }
       },
 
       // 表单数据
@@ -541,13 +545,17 @@ export default {
         .catch(() => {})
     },
     async openDialog(task) {
+      console.log(task)
       this.ruleForm.name = task.taskName || '' // 使用 taskName
-      this.ruleForm.existTaskTypes = task.taskType.taskTypeId || null // 获取 taskTypeId
+      this.ruleForm.existTaskTypes = task.taskTypeId || null // 获取 taskTypeId
       this.ruleForm.date1 = new Date(task.date1 + 'T00:00:00+08:00') // 确保是东八区
       this.ruleForm.date2 = task.date2 ? new Date(`1970-01-01T${task.date2}+08:00`) : null // 确保是东八区
       this.ruleForm.detail = task.taskDetail || '' // 使用 taskDetail
       this.ruleForm.priority = task.taskPriority || '' // 使用 taskPriority
       localStorage.setItem('currentTask', JSON.stringify(task))
+      this.$nextTick(() => {
+        this.$refs.editTaskFormRef.clearValidate() // 清除表单验证状态
+      })
       this.dialogFormVisible = true // 唤醒对话框
     },
     async openTaskTypeDialog(page = 1, size = 5) {
@@ -624,54 +632,69 @@ export default {
         })
     },
     updateTask() {
-      const token = localStorage.getItem('token') // 从本地存储获取 token
-      const currentTask = JSON.parse(localStorage.getItem('currentTask')) // 获取当前任务
-
-      if (currentTask) {
-        const taskId = currentTask.taskId // 获取 taskId
-
-        console.log(taskId)
-        // 准备要发送的数据
-        const updatedTask = {
-          name: this.ruleForm.name,
-          typeId: this.ruleForm.existTaskTypes,
-          date1: this.ruleForm.date1
-            ? new Date(this.ruleForm.date1.getTime() + 8 * 60 * 60 * 1000)
-                .toISOString()
-                .split('T')[0]
-            : null, // 转换为 YYYY-MM-DD
-          date2: this.ruleForm.date2
-            ? new Date(this.ruleForm.date2.getTime() + 8 * 60 * 60 * 1000)
-                .toISOString()
-                .split('T')[1]
-                .substring(0, 8)
-            : null, // 转换为 HH:MM:SS
-          priority: this.ruleForm.priority
-        }
-
-        // 发送 PUT 请求
-        axios
-          .put(`/api/tasks/${taskId}`, updatedTask, {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          })
-          .then((response) => {
-            console.log('date1:', this.ruleForm.date1) // 调试输出
-            console.log('date2:', this.ruleForm.date2) // 调试输出} else {
-            ElMessage.success('更新~成功！( •̀ ω •́ )✧')
-            this.dialogFormVisible = false // 关闭对话框
-            this.resetForm() // 重置表单
-            this.fetchTasks() // 重新获取任务列表
-            this.fetchTaskTypes()
-          })
-          .catch((error) => {
-            console.error(error)
-            ElMessage.error('唔..失败了')
-          })
-      } else {
-        ElMessage.error('没有找到当前任务信息。')
+      const formEl = this.$refs.ruleFormRef // 直接从 $refs 获取表单实例
+      if (!formEl) {
+        ElMessage.error('未找到表单实例，无法验证')
+        return
       }
+
+      formEl.validate((valid) => {
+        if (valid) {
+          const token = localStorage.getItem('token') // 从本地存储获取 token
+          const currentTask = JSON.parse(localStorage.getItem('currentTask')) // 获取当前任务
+
+          if (currentTask) {
+            const taskId = currentTask.taskId // 获取 taskId
+            console.log(`更新任务 ID: ${taskId}`) // 调试输出
+
+            // 准备要发送的数据
+            const updatedTask = {
+              name: this.ruleForm.name,
+              typeId: this.ruleForm.existTaskTypes,
+              date1: this.ruleForm.date1
+                ? new Date(this.ruleForm.date1.getTime() + 8 * 60 * 60 * 1000)
+                    .toISOString()
+                    .split('T')[0]
+                : null, // 转换为 YYYY-MM-DD
+              date2: this.ruleForm.date2
+                ? new Date(this.ruleForm.date2.getTime() + 8 * 60 * 60 * 1000)
+                    .toISOString()
+                    .split('T')[1]
+                    .substring(0, 8)
+                : null, // 转换为 HH:MM:SS
+              priority: this.ruleForm.priority,
+              detail: this.ruleForm.detail // 包含任务细节
+            }
+
+            // 发送 PUT 请求
+            axios
+              .put(`/api/tasks/${taskId}`, updatedTask, {
+                headers: {
+                  Authorization: `Bearer ${token}`
+                }
+              })
+              .then((response) => {
+                if (response.data.code === 20039) {
+                  // 根据实际情况修改状态码
+                  ElMessage.success('更新成功！')
+                  this.dialogFormVisible = false // 关闭对话框
+                  this.resetForm(formEl) // 重置表单
+                  this.fetchTasks() // 重新获取任务列表
+                } else {
+                  ElMessage.error(`更新失败: ${response.data.message}`)
+                }
+              })
+              .catch((error) => {
+                console.error('请求错误:', error)
+                ElMessage.error('更新任务失败，请稍后重试。')
+              })
+          } else {
+            ElMessage.error('没有找到当前任务信息。')
+          }
+        } else {
+          ElMessage.error('请完成表单验证后再提交哦~')
+        }
+      })
     },
 
     formatTaskDetail(detail) {
