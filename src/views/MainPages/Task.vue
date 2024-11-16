@@ -23,16 +23,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="taskName" label="任务名称" />
-          <el-table-column
-            prop="taskStatus"
-            label="任务状态"
-            :filters="[
-              { text: '已完成', value: true },
-              { text: '未完成', value: false }
-            ]"
-            :filter-method="filterStatus"
-            filter-placement="bottom-end"
-          >
+          <el-table-column prop="taskStatus" label="任务状态">
             <template #default="scope">
               <el-checkbox
                 v-model="scope.row.taskStatus"
@@ -40,9 +31,9 @@
               >
                 {{ scope.row.taskStatus ? '已完成' : '未完成' }}
               </el-checkbox>
-            </template>
-          </el-table-column>
-          <el-table-column prop="taskPriority" label="优先级" sortable="" />
+            </template></el-table-column
+          >
+          <el-table-column prop="taskPriority" label="优先级" />
           <el-table-column prop="taskDetail" label="任务细节">
             <template #default="scope">
               <el-popover trigger="hover" placement="bottom" width="auto">
@@ -56,18 +47,9 @@
             </template>
           </el-table-column>
           <!-- 标签列，添加筛选功能 -->
-          <el-table-column
-            label="标签"
-            prop="tags"
-            :filters="getTagFilters(type.typeName)"
-            :filter-method="filterTasksByTag"
-            filter-placement="bottom-end"
-          >
+          <el-table-column label="标签" prop="tags">
             <template #default="scope">
               <div>
-                <el-tag v-for="(tag, index) in scope.row.tags" :key="index">
-                  {{ tag.tagName }}
-                </el-tag>
                 <div id="editTagButton">
                   <!-- 添加修改按钮 -->
                   <el-button size="small" @click="openTagDialog(scope.row)">修改</el-button>
