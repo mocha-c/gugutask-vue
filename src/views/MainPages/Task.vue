@@ -46,25 +46,7 @@
               </el-popover>
             </template>
           </el-table-column>
-          <!-- 标签列，添加筛选功能 -->
-          <el-table-column label="标签" prop="tags">
-            <template #default="scope">
-              <div>
-                <!-- 标签列表 -->
-                <div v-if="scope.row.tags && scope.row.tags.length > 0">
-                  <el-tag v-for="tag in scope.row.tags" :key="tag.tagId" type="primary">
-                    {{ tag.tagName }}
-                  </el-tag>
-                </div>
-                <div v-else>无标签</div>
 
-                <!-- 修改按钮 -->
-                <div id="editTagButton">
-                  <el-button size="small" @click="openTagDialog(scope.row)">修改</el-button>
-                </div>
-              </div>
-            </template>
-          </el-table-column>
           <el-table-column label="操作">
             <template #default="scope">
               <div style="text-align: center">
