@@ -1,208 +1,260 @@
 <template>
   <div>
-    <!-- 表单容器，限制宽度并居中对齐 -->
-    <div class="form-container">
-      <!-- 展示个人信息表单 -->
-      <el-form
-        :model="userInfo"
-        ref="userForm"
-        :rules="rules"
-        label-position="right"
-        label-width="100px"
-      >
-        <el-form-item label="用户名" prop="name">
-          <el-input v-model="userInfo.name" :disabled="!isEditing"></el-input>
-        </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="userInfo.email" :disabled="!isEditing"></el-input>
-        </el-form-item>
-        <el-form-item label="密码" prop="password" v-if="isEditing">
-          <el-input v-model="userInfo.password" type="password" @input="removeSpaces"></el-input>
-        </el-form-item>
-      </el-form>
-
-      <!-- 按钮区域，使用 flex 布局将按钮放在右下角 -->
-      <div class="button-container">
-        <el-button @click="logout" type="danger">注销</el-button>
-        <el-button v-if="!isEditing" type="primary" @click="editInfo">编辑</el-button>
-        <el-button v-if="isEditing" type="success" @click="saveInfo">保存</el-button>
-        <el-button v-if="isEditing" type="warning" @click="cancelEdit">取消</el-button>
+    <!-- 信息展示容器 -->
+    <div class="profile-container">
+      <!-- 用户头像 -->
+      <div class="avatar-container">
+        <img :src="userInfo.avatar || defaultAvatar" alt="用户头像" class="avatar" />
       </div>
+      <!-- 用户信息展示区域 -->
+      <div class="info-container">
+        <!-- 表单组件，用于展示和编辑用户信息 -->
+        <el-form :model="userInfo" ref="userForm" :rules="rules" label-position="top">
+          <!-- 用户名输入框 -->
+          <el-form-item label="用户名" prop="name" class="inputs">
+            <el-input v-model="userInfo.name" :disabled="!isEditing" />
+          </el-form-item>
+          <!-- 邮箱输入框 -->
+          <el-form-item label="邮箱" prop="email" class="inputs">
+            <el-input v-model="userInfo.email" :disabled="!isEditing" />
+          </el-form-item>
+          <!-- 密码输入框，仅在编辑模式下显示 -->
+          <el-form-item label="密码" prop="password" v-if="isEditing" class="inputs">
+            <el-input v-model="userInfo.password" type="password" @input="removeSpaces" />
+          </el-form-item>
+        </el-form>
 
-      <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon></el-alert>
+        <!-- 按钮区域 -->
+        <div class="button-container">
+          <!-- 注销按钮 -->
+          <el-button @click="logout" type="danger">注销</el-button>
+          <!-- 编辑按钮，仅在非编辑模式下显示 -->
+          <el-button v-if="!isEditing" type="primary" @click="editInfo">编辑</el-button>
+          <!-- 保存和取消按钮，仅在编辑模式下显示 -->
+          <el-button v-if="isEditing" type="success" @click="saveInfo">保存</el-button>
+          <el-button v-if="isEditing" type="warning" @click="cancelEdit">取消</el-button>
+        </div>
+
+        <!-- 错误信息提示 -->
+        <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon />
+      </div>
     </div>
   </div>
 </template>
 
-<script lang="ts" setup>
+<script>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 
-// 使用 Vue Router
-const router = useRouter()
+export default {
+  setup() {
+    const router = useRouter()
 
-// 注销逻辑
-const logout = () => {
-  // 清理 localStorage 中的 token
-  localStorage.removeItem('token')
-  // 跳转到登录页面
-  router.push('/login')
-}
+    // 用户信息数据
+    const userInfo = ref({
+      id: '', // 用户ID
+      name: '', // 用户名
+      email: '', // 用户邮箱
+      password: '', // 用户密码，仅用于更新
+      avatar: '' // 用户头像URL
+    })
 
-// 定义用户信息
-const originalUserInfo = ref({
-  id: '',
-  name: '',
-  email: ''
-})
+    // 默认头像路径
+    const defaultAvatar = '/default-avatar.jpg'
 
-const userInfo = ref({
-  id: '',
-  name: '',
-  email: '',
-  password: ''
-})
+    // 保存原始用户信息，用于恢复数据
+    const originalUserInfo = ref({})
+    // 是否处于编辑模式
+    const isEditing = ref(false)
+    // 错误信息提示
+    const errorMessage = ref('')
 
-// 编辑模式状态
-const isEditing = ref(false)
-
-// 错误信息
-const errorMessage = ref('')
-
-// 表单校验规则
-const rules = {
-  name: [{ required: true, message: '用户名不能为空', trigger: 'blur' }],
-  email: [
-    { required: true, message: '邮箱不能为空', trigger: 'blur' },
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
-  ]
-}
-
-// 获取用户信息
-const fetchUserInfo = async () => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    try {
-      const response = await axios.get('/api/users/me', {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      })
-      if (response.data.code === 20039) {
-        userInfo.value = {
-          id: response.data.data.id,
-          name: response.data.data.username,
-          email: response.data.data.email,
-          password: ''
-        }
-        originalUserInfo.value = { ...userInfo.value }
-      }
-    } catch (error) {
-      console.error('获取用户信息失败:', error)
+    // 表单校验规则
+    const rules = {
+      name: [{ required: true, message: '用户名不能为空', trigger: 'blur' }],
+      email: [
+        { required: true, message: '邮箱不能为空', trigger: 'blur' },
+        { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+      ]
     }
-  } else {
-    router.push('/login')
-  }
-}
 
-// 编辑用户信息
-const editInfo = () => {
-  isEditing.value = true
-}
-
-// 保存用户信息
-const saveInfo = async () => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    try {
-      const dataToUpdate: any = {
-        username: userInfo.value.name,
-        email: userInfo.value.email
+    // 获取用户信息
+    const fetchUserInfo = async () => {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        // 如果没有登录令牌，跳转到登录页面
+        router.push('/login')
+        return
       }
 
-      // 检查用户名是否改变
-      if (userInfo.value.name === originalUserInfo.value.name) {
-        delete dataToUpdate.username
+      try {
+        // 从后端获取当前用户信息
+        const response = await axios.get('/api/users/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (response.data.code === 20039) {
+          // 成功获取用户信息，更新数据
+          userInfo.value = {
+            id: response.data.data.id,
+            name: response.data.data.username,
+            email: response.data.data.email,
+            avatar: response.data.data.avatar || '',
+            password: ''
+          }
+          // 保存原始数据
+          originalUserInfo.value = { ...userInfo.value }
+        }
+      } catch (error) {
+        console.error('获取用户信息失败:', error)
+      }
+    }
+
+    // 注销逻辑
+    const logout = () => {
+      // 清除登录令牌
+      localStorage.removeItem('token')
+      // 跳转到登录页面
+      router.push('/login')
+    }
+
+    // 启用编辑模式
+    const editInfo = () => {
+      isEditing.value = true
+    }
+
+    // 保存更新后的用户信息
+    const saveInfo = async () => {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        // 如果没有登录令牌，跳转到登录页面
+        router.push('/login')
+        return
       }
 
-      // 检查邮箱是否改变
-      if (userInfo.value.email === originalUserInfo.value.email) {
-        delete dataToUpdate.email
+      // 创建更新数据对象
+      const dataToUpdate = {}
+
+      // 检查用户名是否更改
+      if (userInfo.value.name !== originalUserInfo.value.name) {
+        dataToUpdate.username = userInfo.value.name
       }
 
-      // 检查密码是否为空且已更改
+      // 检查邮箱是否更改
+      if (userInfo.value.email !== originalUserInfo.value.email) {
+        dataToUpdate.email = userInfo.value.email
+      }
+
+      // 检查密码是否有输入
       if (userInfo.value.password) {
         dataToUpdate.password = userInfo.value.password
-      } else {
-        delete dataToUpdate.password
       }
 
-      // 如果没有变化的字段，给出提示并返回
-      if (Object.keys(dataToUpdate).length === 0) {
+      // 如果没有任何更改，提示用户
+      if (!Object.keys(dataToUpdate).length) {
         errorMessage.value = '没有任何更改'
         return
       }
 
-      const response = await axios.put('/api/users/me', dataToUpdate, {
-        headers: {
-          Authorization: `Bearer ${token}`
+      try {
+        // 发送更新请求到后端
+        const response = await axios.put('/api/users/me', dataToUpdate, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+
+        if (response.data.code === 20039) {
+          // 更新成功，退出编辑模式并重新获取用户信息
+          isEditing.value = false
+          fetchUserInfo()
+          errorMessage.value = ''
         }
-      })
-      if (response.data.code === 20039) {
-        console.log('更新用户信息成功:', response.data)
-        isEditing.value = false
-        await fetchUserInfo() // 更新后重新获取用户信息
-        errorMessage.value = ''
-      }
-    } catch (error) {
-      console.error('更新用户信息失败:', error)
-      if (error.response && error.response.data && error.response.data.message) {
-        errorMessage.value = error.response.data.message
-      } else {
-        errorMessage.value = '更新用户信息时发生错误'
+      } catch (error) {
+        // 更新失败，显示错误信息
+        errorMessage.value = error.response?.data?.message || '更新用户信息时发生错误'
       }
     }
-  } else {
-    router.push('/login')
+
+    // 取消编辑并恢复原始数据
+    const cancelEdit = () => {
+      isEditing.value = false
+      fetchUserInfo()
+      errorMessage.value = ''
+    }
+
+    // 移除密码中的空格
+    const removeSpaces = () => {
+      userInfo.value.password = userInfo.value.password.replace(/\s+/g, '')
+    }
+
+    // 组件加载时获取用户信息
+    onMounted(fetchUserInfo)
+
+    return {
+      userInfo,
+      isEditing,
+      errorMessage,
+      rules,
+      logout,
+      editInfo,
+      saveInfo,
+      cancelEdit,
+      removeSpaces,
+      defaultAvatar
+    }
   }
 }
-
-// 取消编辑
-const cancelEdit = () => {
-  isEditing.value = false
-  fetchUserInfo() // 重新获取用户信息，恢复之前的数据
-  errorMessage.value = ''
-}
-// 移除密码中的空格
-const removeSpaces = () => {
-  userInfo.value.password = userInfo.value.password.replace(/\s+/g, '')
-}
-
-// 组件加载时获取用户信息
-onMounted(() => {
-  fetchUserInfo()
-})
 </script>
+
 <style scoped>
-.form-container {
-  max-width: 400px;
+/* 信息展示容器布局 */
+.profile-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 1em;
+  max-width: 600px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 1em;
+  margin-top: 3em;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
+/* 头像容器样式 */
+.avatar-container {
+  flex-shrink: 0;
+  width: fit-content;
+}
+
+/* 用户头像样式 */
+.avatar {
+  min-width: 10em;
+  min-height: 10em;
+  max-width: 12em;
+  max-height: 12em;
+  border-radius: 1em;
+  object-fit: cover;
+  border: 2px solid #ddd;
+}
+
+/* 信息容器样式 */
+.info-container {
+}
+
+/* 表单项对齐方式 */
 .el-form-item {
-  text-align: right;
+  margin-bottom: 20px;
 }
 
-.el-input {
-  width: 100%;
-}
-
+/* 按钮容器布局 */
 .button-container {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 10px;
-  margin-top: 20px;
+}
+
+.inputs {
+  max-width: 12em;
 }
 </style>
