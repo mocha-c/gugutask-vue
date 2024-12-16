@@ -4,7 +4,24 @@
     <div class="profile-container">
       <!-- 用户头像 -->
       <div class="avatar-container">
-        <img :src="userInfo.avatar || defaultAvatar" alt="用户头像" class="avatar" />
+        <img
+          :src="userInfo.avatar || defaultAvatar"
+          alt="用户头像"
+          class="avatar"
+          @click="selectAvatar"
+        />
+        <!-- 悬停覆盖层 -->
+        <div v-if="isHovered" class="overlay">
+          <span class="overlay-text">点击上传图片</span>
+        </div>
+        <!-- 隐藏的文件选择框 -->
+        <input
+          type="file"
+          ref="avatarInput"
+          style="display: none"
+          accept="image/*"
+          @change="handleAvatarChange"
+        />
       </div>
       <!-- 用户信息展示区域 -->
       <div class="info-container">
@@ -69,7 +86,14 @@ export default {
     const isEditing = ref(false)
     // 错误信息提示
     const errorMessage = ref('')
+    const isHovered = ref(false)
+    const showOverlay = () => {
+      isHovered.value = true
+    }
 
+    const hideOverlay = () => {
+      isHovered.value = false
+    }
     // 表单校验规则
     const rules = {
       name: [{ required: true, message: '用户名不能为空', trigger: 'blur' }],
@@ -186,6 +210,40 @@ export default {
       userInfo.value.password = userInfo.value.password.replace(/\s+/g, '')
     }
 
+    const selectAvatar = () => {
+      // 点击头像时，触发文件选择框
+      const fileInput = document.querySelector('input[type="file"]')
+      fileInput.click()
+    }
+    const handleAvatarChange = async (event) => {
+      const file = event.target.files[0]
+      if (!file || !file.type.startsWith('image/')) {
+        errorMessage.value = '请选择图片文件'
+        return
+      }
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        const token = localStorage.getItem('token')
+        const response = await axios.post('/api/upload-avatar', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            Authorization: `Bearer ${token}`
+          }
+        })
+
+        if (response.data.url) {
+          userInfo.value.avatar = response.data.url // 更新头像URL
+          errorMessage.value = ''
+        }
+      } catch (error) {
+        console.error('上传头像失败:', error)
+        errorMessage.value = '上传头像失败，请稍后再试'
+      }
+    }
+
     // 组件加载时获取用户信息
     onMounted(fetchUserInfo)
 
@@ -199,7 +257,12 @@ export default {
       saveInfo,
       cancelEdit,
       removeSpaces,
-      defaultAvatar
+      defaultAvatar,
+      selectAvatar,
+      handleAvatarChange,
+      isHovered,
+      showOverlay,
+      hideOverlay
     }
   }
 }
@@ -225,6 +288,7 @@ export default {
 .avatar-container {
   flex-shrink: 0;
   width: fit-content;
+  cursor: pointer;
 }
 
 /* 用户头像样式 */
@@ -236,6 +300,10 @@ export default {
   border-radius: 1em;
   object-fit: cover;
   border: 2px solid #ddd;
+  transition: filter 0.3s ease; /* 添加过渡效果 */
+}
+.avatar-container:hover .avatar {
+  filter: brightness(0.9); /* 鼠标悬停时变暗 */
 }
 
 /* 信息容器样式 */
