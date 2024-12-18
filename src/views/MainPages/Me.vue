@@ -234,8 +234,8 @@ export default {
           }
         })
 
-        if (response.data.url) {
-          userInfo.value.avatar = response.data.url // 更新头像URL
+        if (response.data.data.url) {
+          userInfo.value.avatar = response.data.data.url // 更新头像URL
           errorMessage.value = ''
         }
       } catch (error) {
@@ -293,10 +293,8 @@ export default {
 
 /* 用户头像样式 */
 .avatar {
-  min-width: 10em;
-  min-height: 10em;
-  max-width: 12em;
-  max-height: 12em;
+  width: 12em;
+  height: 12em;
   border-radius: 1em;
   object-fit: cover;
   border: 2px solid #ddd;
